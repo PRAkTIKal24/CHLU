@@ -46,12 +46,6 @@ python_classes = "Test*"
 python_functions = "test_*"
 addopts = "--cov=chlu --cov-report=xml --cov-report=term"
 
-[tool.hatch.build.targets.sdist]
-include = ["./chlu", "README.md", "pyproject.toml"]
-
-[tool.hatch.build.targets.wheel.sources]
-"chlu" = "chlu"
-
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"

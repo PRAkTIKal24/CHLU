@@ -1,0 +1,8 @@
+numpy
+scipy
+torch
+scikit-learn
+matplotlib
+tqdm
+rich
+art
