@@ -15,7 +15,6 @@ dependencies = [
     "tqdm",
     "rich",
     "art",
-    "argparse",
 ]
 
 [project.scripts]
@@ -49,9 +48,6 @@ addopts = "--cov=chlu --cov-report=xml --cov-report=term"
 
 [tool.hatch.build.targets.sdist]
 include = ["./chlu", "README.md", "pyproject.toml"]
-
-[tool.hatch.build.targets.wheel]
-#include = ["./chlu"]
 
 [tool.hatch.build.targets.wheel.sources]
 "chlu" = "chlu"
