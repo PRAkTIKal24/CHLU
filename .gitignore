@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+chlu/workspaces/
+shell_scripts/
+uv.lock
+.venv/
+.coverage
+coverage.xml
+.pytest_cache/
+*.egg-info/
+dist/
+build/
