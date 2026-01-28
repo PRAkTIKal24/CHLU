@@ -1,6 +1,6 @@
 [project]
 name = "chlu"
-version = "0.1.6"
+version = "0.1.8"
 description = "Causal Hamiltonian Learning Unit"
 authors = [{ name = "Pratik Jawahar" }]
 requires-python = ">=3.10, <3.13"
