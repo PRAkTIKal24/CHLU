@@ -43,6 +43,9 @@ test = ["pytest>=8.0.0,<9", "pytest-cov>=5.0.0,<6", "pytest-xdist>=3.5.0,<4"]
 extend-select = ["B"]
 
 [tool.uv]
+dev-dependencies = []
+
+[tool.uv.sources]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
