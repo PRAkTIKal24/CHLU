@@ -9,8 +9,11 @@ readme = "README.md"
 dependencies = [
     "numpy",
     "scipy",
-    "torch",
-    "scikit-learn",
+    "jax",
+    "jaxlib",
+    "equinox",
+    "optax",
+    "diffrax",
     "matplotlib",
     "tqdm",
     "rich",
