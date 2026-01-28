@@ -138,15 +138,22 @@ def load_config(path: Path) -> CHLUConfig:
     with open(path, "r") as f:
         data = yaml.safe_load(f)
 
-    # Reconstruct nested dataclasses
+    def filter_valid_fields(config_class, data_dict):
+        """Filter dict to only include fields that exist in the dataclass."""
+        if not data_dict:
+            return {}
+        valid_fields = {f.name for f in config_class.__dataclass_fields__.values()}
+        return {k: v for k, v in data_dict.items() if k in valid_fields}
+
+    # Reconstruct nested dataclasses with field filtering
     config = CHLUConfig(
-        model=ModelConfig(**data.get("model", {})),
-        training=TrainingConfig(**data.get("training", {})),
-        experiment_a=ExperimentAConfig(**data.get("experiment_a", {})),
-        experiment_b=ExperimentBConfig(**data.get("experiment_b", {})),
-        experiment_c=ExperimentCConfig(**data.get("experiment_c", {})),
-        data=DataConfig(**data.get("data", {})),
-        project=ProjectConfig(**data.get("project", {})),
+        model=ModelConfig(**filter_valid_fields(ModelConfig, data.get("model", {}))),
+        training=TrainingConfig(**filter_valid_fields(TrainingConfig, data.get("training", {}))),
+        experiment_a=ExperimentAConfig(**filter_valid_fields(ExperimentAConfig, data.get("experiment_a", {}))),
+        experiment_b=ExperimentBConfig(**filter_valid_fields(ExperimentBConfig, data.get("experiment_b", {}))),
+        experiment_c=ExperimentCConfig(**filter_valid_fields(ExperimentCConfig, data.get("experiment_c", {}))),
+        data=DataConfig(**filter_valid_fields(DataConfig, data.get("data", {}))),
+        project=ProjectConfig(**filter_valid_fields(ProjectConfig, data.get("project", {}))),
     )
     return config
 
