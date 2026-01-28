@@ -1,6 +1,5 @@
 """Tests for data generators."""
 
-import pytest
 import jax
 import jax.numpy as jnp
 

@@ -1,6 +1,5 @@
 """Data generation CLI commands."""
 
-import argparse
 from pathlib import Path
 from rich.console import Console
 import numpy as np
@@ -59,7 +58,7 @@ def cmd_data_figure8(args):
     config = get_default_config()
     dt = args.dt if args.dt else config.data.figure8_dt
     
-    console.print(f"[bold cyan]Generating figure-8 data[/bold cyan]")
+    console.print("[bold cyan]Generating figure-8 data[/bold cyan]")
     console.print(f"  Steps: {args.steps}, dt: {dt}")
     
     try:
@@ -87,7 +86,7 @@ def cmd_data_sine(args):
     config = get_default_config()
     dt = args.dt if args.dt else config.data.sine_dt
     
-    console.print(f"[bold cyan]Generating sine wave data[/bold cyan]")
+    console.print("[bold cyan]Generating sine wave data[/bold cyan]")
     console.print(f"  Waves: {args.n_waves}, Steps: {args.steps}, dt: {dt}")
     
     try:
@@ -119,7 +118,7 @@ def cmd_data_mnist(args):
     config = get_default_config()
     pca_dim = args.pca_dim if args.pca_dim else config.data.mnist_pca_dim
     
-    console.print(f"[bold cyan]Preparing MNIST data[/bold cyan]")
+    console.print("[bold cyan]Preparing MNIST data[/bold cyan]")
     console.print(f"  PCA dimensions: {pca_dim}")
     
     try:

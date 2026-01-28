@@ -35,7 +35,7 @@ def compute_lyapunov_loss(
     def compute_jacobian_log_singular_values(idx):
         """Compute log singular values of Jacobian at given trajectory point."""
         state = trajectory[idx]
-        q, p = state[:dim], state[dim:]
+        _q, _p = state[:dim], state[dim:]
         
         # Wrapper for step function that takes flat state
         def step_wrapper(flat_state):

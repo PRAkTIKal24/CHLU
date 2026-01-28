@@ -6,7 +6,6 @@ Compares long-horizon stability across CHLU, NODE, and LSTM.
 import os
 from typing import Optional
 import jax
-import jax.numpy as jnp
 
 from chlu.core.chlu_unit import CHLU
 from chlu.core.baselines import NeuralODE, LSTMPredictor

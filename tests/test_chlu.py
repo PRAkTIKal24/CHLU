@@ -2,7 +2,6 @@
 Basic tests for CHLU package.
 """
 
-import pytest
 from chlu import chlu
 
 

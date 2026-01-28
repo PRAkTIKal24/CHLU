@@ -1,7 +1,5 @@
 """Project management CLI commands."""
 
-import argparse
-from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 from ..project import ProjectManager

@@ -1,6 +1,5 @@
 """Experiment execution CLI commands."""
 
-import argparse
 from pathlib import Path
 from rich.console import Console
 from ..project import ProjectManager
