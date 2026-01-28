@@ -73,7 +73,8 @@ def run_experiment_a(
     test_steps = config.experiment_a.test_steps
     train_epochs = config.experiment_a.train_epochs
     dt = config.experiment_a.dt
-    chlu_dim = config.experiment_a.chlu_dim
+    # Figure-8 is always 2D in position space (x,y) -> chlu_dim must be 2
+    chlu_dim = 2
     node_dim = config.experiment_a.node_dim
     hidden_dim = config.experiment_a.hidden_dim
     

@@ -43,7 +43,7 @@ class ExperimentAConfig:
     test_steps: int = 10000
     train_epochs: int = 500
     dt: float = 0.01
-    chlu_dim: int = 2
+    # Note: chlu_dim is always 2 for Figure-8 (not configurable)
     node_dim: int = 4
     hidden_dim: int = 32
 
