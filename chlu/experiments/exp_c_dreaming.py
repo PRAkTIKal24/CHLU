@@ -4,6 +4,7 @@ Validates PCD training and generative capability of CHLU.
 """
 
 import os
+from typing import Optional
 import jax
 import jax.numpy as jnp
 
@@ -11,17 +12,19 @@ from chlu.core.chlu_unit import CHLU
 from chlu.data.mnist import load_mnist_pca
 from chlu.training.train import train_chlu
 from chlu.utils.plotting import plot_dreaming_grid
+from chlu.config import CHLUConfig, get_default_config
 
 
 def run_experiment_c(
-    save_dir: str = "results/",
-    seed: int = 42,
-    pca_dim: int = 32,
-    train_epochs: int = 1000,
-    n_samples: int = 5000,
-    dream_steps: int = 100,
-    friction: float = 0.01,
-    dt: float = 0.01,
+    config: Optional[CHLUConfig] = None,
+    save_dir: Optional[str] = None,
+    seed: Optional[int] = None,
+    pca_dim: Optional[int] = None,
+    train_epochs: Optional[int] = None,
+    n_samples: Optional[int] = None,
+    dream_steps: Optional[int] = None,
+    friction: Optional[float] = None,
+    dt: Optional[float] = None,
 ):
     """
     Experiment C: Generative "Dreaming" (MNIST).
@@ -38,15 +41,53 @@ def run_experiment_c(
         to recognizable digit shapes.
     
     Args:
-        save_dir: Directory to save results
-        seed: Random seed
-        pca_dim: PCA dimensionality
-        train_epochs: Training epochs
-        n_samples: Number of MNIST samples to use
-        dream_steps: Steps to evolve during dreaming
-        friction: Friction coefficient for energy dissipation
-        dt: Time step
+        config: CHLUConfig object (if None, uses defaults)
+        save_dir: Directory to save results (overrides config)
+        seed: Random seed (overrides config)
+        pca_dim: PCA dimensionality (overrides config)
+        train_epochs: Training epochs (overrides config)
+        n_samples: Number of MNIST samples to use (overrides config)
+        dream_steps: Steps to evolve during dreaming (overrides config)
+        friction: Friction coefficient for energy dissipation (overrides config)
+        dt: Time step (overrides config)
     """
+    # Load config with overrides
+    if config is None:
+        config = get_default_config()
+    
+    if save_dir is not None:
+        config.project.save_dir = save_dir
+    if seed is not None:
+        config.project.seed = seed
+    if pca_dim is not None:
+        config.experiment_c.pca_dim = pca_dim
+    if train_epochs is not None:
+        config.experiment_c.train_epochs = train_epochs
+    if n_samples is not None:
+        config.experiment_c.n_samples = n_samples
+    if dream_steps is not None:
+        config.experiment_c.dream_steps = dream_steps
+    if friction is not None:
+        config.experiment_c.friction = friction
+    if dt is not None:
+        config.experiment_c.dt = dt
+    
+    # Extract values from config
+    save_dir = config.project.save_dir or "results/"
+    seed = config.project.seed
+    pca_dim = config.experiment_c.pca_dim
+    train_epochs = config.experiment_c.train_epochs
+    n_samples = config.experiment_c.n_samples
+    dream_steps = config.experiment_c.dream_steps
+    friction = config.experiment_c.friction
+    dt = config.experiment_c.dt
+    hidden_dim = config.experiment_c.hidden_dim
+    n_dreams = config.experiment_c.n_dreams
+    p_train_scale = config.experiment_c.p_train_scale
+    q_noise_scale = config.experiment_c.q_noise_scale
+    p_noise_scale = config.experiment_c.p_noise_scale
+    snapshot_steps = config.experiment_c.snapshot_steps
+    
     print("\n" + "="*60)
     print("EXPERIMENT C: Generative Dreaming (MNIST)")
     print("="*60)
@@ -69,7 +110,7 @@ def run_experiment_c(
     # Create training data in (q, p) format
     # Start with q = PCA features, p = small random momentum
     n_train = len(train_data)
-    p_train = jax.random.normal(k1, (n_train, pca_dim)) * 0.1
+    p_train = jax.random.normal(k1, (n_train, pca_dim)) * p_train_scale
     train_qp = jnp.concatenate([train_data, p_train], axis=-1)  # (n, 2*pca_dim)
     
     # Reshape for training: add time dimension (treat each sample as single timestep)
@@ -79,13 +120,12 @@ def run_experiment_c(
     print(f"\n[2/4] Training CHLU ({train_epochs} epochs)...")
     k2, k3 = jax.random.split(k2)
     
-    chlu = CHLU(dim=pca_dim, hidden=32, key=k3)
+    chlu = CHLU(dim=pca_dim, hidden=hidden_dim, key=k3)
     chlu, losses = train_chlu(
         chlu,
         train_qp,
         key=k3,
-        epochs=train_epochs,
-        dt=dt,
+        config=config,
     )
     
     print(f"  Final loss: {losses[-1]:.6f}")
@@ -99,8 +139,8 @@ def run_experiment_c(
     n_dreams = 32  # 4x8 grid
     
     # Initialize random noise states
-    q_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * 2.0
-    p_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * 0.5
+    q_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * q_noise_scale
+    p_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * p_noise_scale
     
     # Evolve each noise state with friction (energy dissipation)
     dream_sequences = []
@@ -110,7 +150,6 @@ def run_experiment_c(
         sequence = []
         
         # Record snapshots at different timesteps
-        snapshot_steps = [0, 10, 30, 50, 70, 100]
         current_step = 0
         
         for step in range(dream_steps):

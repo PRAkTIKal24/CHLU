@@ -4,6 +4,7 @@ Tests the "noise filter" hypothesis across CHLU, NODE, and LSTM.
 """
 
 import os
+from typing import Optional
 import jax
 import jax.numpy as jnp
 
@@ -14,18 +15,20 @@ from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_neural_ode, train_lstm
 from chlu.utils.plotting import plot_noise_curves
 from chlu.utils.metrics import compute_mse
+from chlu.config import CHLUConfig, get_default_config
 
 
 def run_experiment_b(
-    save_dir: str = "results/",
-    seed: int = 42,
-    n_waves: int = 100,
-    steps: int = 200,
-    train_epochs: int = 500,
-    dt: float = 0.01,
-    sigma_min: float = 0.1,
-    sigma_max: float = 1.0,
-    n_sigma: int = 10,
+    config: Optional[CHLUConfig] = None,
+    save_dir: Optional[str] = None,
+    seed: Optional[int] = None,
+    n_waves: Optional[int] = None,
+    steps: Optional[int] = None,
+    train_epochs: Optional[int] = None,
+    dt: Optional[float] = None,
+    sigma_min: Optional[float] = None,
+    sigma_max: Optional[float] = None,
+    n_sigma: Optional[int] = None,
 ):
     """
     Experiment B: Energy-Based Noise Rejection.
@@ -45,16 +48,54 @@ def run_experiment_b(
         - CHLU: Flat/robust error (filters noise)
     
     Args:
-        save_dir: Directory to save results
-        seed: Random seed
-        n_waves: Number of sine waves to generate
-        steps: Steps per wave
-        train_epochs: Training epochs
-        dt: Time step
-        sigma_min: Minimum noise level
-        sigma_max: Maximum noise level
-        n_sigma: Number of noise levels to test
+        config: CHLUConfig object (if None, uses defaults)
+        save_dir: Directory to save results (overrides config)
+        seed: Random seed (overrides config)
+        n_waves: Number of sine waves to generate (overrides config)
+        steps: Steps per wave (overrides config)
+        train_epochs: Training epochs (overrides config)
+        dt: Time step (overrides config)
+        sigma_min: Minimum noise level (overrides config)
+        sigma_max: Maximum noise level (overrides config)
+        n_sigma: Number of noise levels to test (overrides config)
     """
+    # Load config with overrides
+    if config is None:
+        config = get_default_config()
+    
+    if save_dir is not None:
+        config.project.save_dir = save_dir
+    if seed is not None:
+        config.project.seed = seed
+    if n_waves is not None:
+        config.experiment_b.n_waves = n_waves
+    if steps is not None:
+        config.experiment_b.steps = steps
+    if train_epochs is not None:
+        config.experiment_b.train_epochs = train_epochs
+    if dt is not None:
+        config.experiment_b.dt = dt
+    if sigma_min is not None:
+        config.experiment_b.sigma_min = sigma_min
+    if sigma_max is not None:
+        config.experiment_b.sigma_max = sigma_max
+    if n_sigma is not None:
+        config.experiment_b.n_sigma = n_sigma
+    
+    # Extract values from config
+    save_dir = config.project.save_dir or "results/"
+    seed = config.project.seed
+    n_waves = config.experiment_b.n_waves
+    steps = config.experiment_b.steps
+    train_epochs = config.experiment_b.train_epochs
+    dt = config.experiment_b.dt
+    sigma_min = config.experiment_b.sigma_min
+    sigma_max = config.experiment_b.sigma_max
+    n_sigma = config.experiment_b.n_sigma
+    chlu_dim = config.experiment_b.chlu_dim
+    node_dim = config.experiment_b.node_dim
+    hidden_dim = config.experiment_b.hidden_dim
+    
     print("\n" + "="*60)
     print("EXPERIMENT B: Energy-Based Noise Rejection")
     print("="*60)
@@ -82,18 +123,18 @@ def run_experiment_b(
     
     # CHLU (1D sine wave, but we track [x, dx/dt] so dim=1 for position)
     print("  Training CHLU...")
-    chlu = CHLU(dim=1, hidden=32, key=k3)
-    chlu, _ = train_chlu(chlu, train_data, key=k3, epochs=train_epochs, dt=dt)
+    chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, key=k3)
+    chlu, _ = train_chlu(chlu, train_data, key=k3, config=config)
     
     # Neural ODE (2D: [x, dx/dt])
     print("  Training Neural ODE...")
-    node = NeuralODE(dim=2, hidden=32, key=k4)
-    node, _ = train_neural_ode(node, train_data, key=k4, epochs=train_epochs, dt=dt)
+    node = NeuralODE(dim=node_dim, hidden=hidden_dim, key=k4)
+    node, _ = train_neural_ode(node, train_data, key=k4, config=config)
     
     # LSTM
     print("  Training LSTM...")
-    lstm = LSTMPredictor(dim=2, hidden_size=32, key=k5)
-    lstm, _ = train_lstm(lstm, train_data, key=k5, epochs=train_epochs)
+    lstm = LSTMPredictor(dim=node_dim, hidden_size=hidden_dim, key=k5)
+    lstm, _ = train_lstm(lstm, train_data, key=k5, config=config)
     
     # 3. Test across noise levels
     print(f"\n[3/4] Testing noise robustness ({n_sigma} noise levels)...")

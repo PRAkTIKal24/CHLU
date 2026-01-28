@@ -1,5 +1,6 @@
 """PCD (Wake-Sleep) training for CHLU."""
 
+from typing import Optional
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -9,19 +10,21 @@ from tqdm import tqdm
 from chlu.training.replay_buffer import ReplayBuffer
 from chlu.training.losses import mse_loss, energy_loss
 from chlu.core.regularization import compute_lyapunov_loss
+from chlu.config import CHLUConfig, get_default_config
 
 
 def train_chlu(
     model,
     data: jnp.ndarray,
     key: jax.random.PRNGKey,
-    epochs: int = 1000,
-    lr: float = 1e-3,
-    lyapunov_lambda: float = 0.01,
-    sleep_steps: int = 10,
-    buffer_capacity: int = 1024,
-    batch_size: int = 32,
-    dt: float = 0.01,
+    config: Optional[CHLUConfig] = None,
+    epochs: Optional[int] = None,
+    lr: Optional[float] = None,
+    lyapunov_lambda: Optional[float] = None,
+    sleep_steps: Optional[int] = None,
+    buffer_capacity: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    dt: Optional[float] = None,
 ):
     """
     Train CHLU using Persistent Contrastive Divergence (Wake-Sleep).
@@ -33,17 +36,40 @@ def train_chlu(
         model: CHLU model
         data: Training data of shape (n_trajectories, T, 2*dim) or (T, 2*dim)
         key: JAX random key
-        epochs: Number of training epochs
-        lr: Learning rate
-        lyapunov_lambda: Weight for Lyapunov regularization
-        sleep_steps: Number of dynamics steps in sleep phase
-        buffer_capacity: Replay buffer capacity
-        batch_size: Batch size for sleep phase
-        dt: Time step for dynamics
+        config: CHLUConfig object (if None, uses defaults)
+        epochs: Number of training epochs (overrides config)
+        lr: Learning rate (overrides config)
+        lyapunov_lambda: Weight for Lyapunov regularization (overrides config)
+        sleep_steps: Number of dynamics steps in sleep phase (overrides config)
+        buffer_capacity: Replay buffer capacity (overrides config)
+        batch_size: Batch size for sleep phase (overrides config)
+        dt: Time step for dynamics (overrides config)
     
     Returns:
         (trained_model, losses): Trained model and loss history
     """
+    # Load config with overrides
+    if config is None:
+        config = get_default_config()
+    
+    # Apply overrides
+    if epochs is None:
+        epochs = config.training.epochs
+    if lr is None:
+        lr = config.training.learning_rate
+    if lyapunov_lambda is None:
+        lyapunov_lambda = config.training.lyapunov_lambda
+    if sleep_steps is None:
+        sleep_steps = config.training.sleep_steps
+    if buffer_capacity is None:
+        buffer_capacity = config.training.buffer_capacity
+    if batch_size is None:
+        batch_size = config.training.batch_size
+    if dt is None:
+        dt = config.training.dt
+    
+    sleep_frequency = config.training.sleep_frequency
+    
     # Handle data shape
     if data.ndim == 2:
         data = data[None, :, :]  # Add batch dimension
@@ -128,7 +154,7 @@ def train_chlu(
         model, opt_state, wake_loss = wake_step(model, opt_state, trajectory, k3)
         
         # Sleep phase (every few epochs to save compute)
-        if epoch % 5 == 0:
+        if epoch % sleep_frequency == 0:
             k3, k4 = jax.random.split(k3)
             model, opt_state, sleep_loss = sleep_step(model, opt_state, buffer, k4)
         

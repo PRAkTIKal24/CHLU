@@ -1,5 +1,6 @@
 """Training functions for baseline models (Neural ODE and LSTM)."""
 
+from typing import Optional
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -7,15 +8,17 @@ import optax
 from tqdm import tqdm
 
 from chlu.training.losses import mse_loss
+from chlu.config import CHLUConfig, get_default_config
 
 
 def train_neural_ode(
     model,
     data: jnp.ndarray,
     key: jax.random.PRNGKey,
-    epochs: int = 1000,
-    lr: float = 1e-3,
-    dt: float = 0.01,
+    config: Optional[CHLUConfig] = None,
+    epochs: Optional[int] = None,
+    lr: Optional[float] = None,
+    dt: Optional[float] = None,
 ):
     """
     Train Neural ODE with standard supervised learning.
@@ -24,13 +27,25 @@ def train_neural_ode(
         model: NeuralODE model
         data: Training data (n_trajectories, T, dim) or (T, dim)
         key: JAX random key
-        epochs: Number of epochs
-        lr: Learning rate
-        dt: Time step
+        config: CHLUConfig object (if None, uses defaults)
+        epochs: Number of epochs (overrides config)
+        lr: Learning rate (overrides config)
+        dt: Time step (overrides config)
     
     Returns:
         (trained_model, losses): Trained model and loss history
     """
+    # Load config with overrides
+    if config is None:
+        config = get_default_config()
+    
+    if epochs is None:
+        epochs = config.training.epochs
+    if lr is None:
+        lr = config.training.learning_rate
+    if dt is None:
+        dt = config.training.dt
+    
     # Handle data shape
     if data.ndim == 2:
         data = data[None, :, :]
@@ -79,8 +94,9 @@ def train_lstm(
     model,
     data: jnp.ndarray,
     key: jax.random.PRNGKey,
-    epochs: int = 1000,
-    lr: float = 1e-3,
+    config: Optional[CHLUConfig] = None,
+    epochs: Optional[int] = None,
+    lr: Optional[float] = None,
 ):
     """
     Train LSTM for next-step prediction.
@@ -89,12 +105,22 @@ def train_lstm(
         model: LSTMPredictor model
         data: Training data (n_sequences, T, dim) or (T, dim)
         key: JAX random key
-        epochs: Number of epochs
-        lr: Learning rate
+        config: CHLUConfig object (if None, uses defaults)
+        epochs: Number of epochs (overrides config)
+        lr: Learning rate (overrides config)
     
     Returns:
         (trained_model, losses): Trained model and loss history
     """
+    # Load config with overrides
+    if config is None:
+        config = get_default_config()
+    
+    if epochs is None:
+        epochs = config.training.epochs
+    if lr is None:
+        lr = config.training.learning_rate
+    
     # Handle data shape
     if data.ndim == 2:
         data = data[None, :, :]

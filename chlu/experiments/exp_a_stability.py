@@ -4,6 +4,7 @@ Compares long-horizon stability across CHLU, NODE, and LSTM.
 """
 
 import os
+from typing import Optional
 import jax
 import jax.numpy as jnp
 
@@ -13,15 +14,17 @@ from chlu.data.figure8 import generate_figure8
 from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_neural_ode, train_lstm
 from chlu.utils.plotting import plot_three_panel_trajectories
+from chlu.config import CHLUConfig, get_default_config
 
 
 def run_experiment_a(
-    save_dir: str = "results/",
-    seed: int = 42,
-    train_steps: int = 100,
-    test_steps: int = 10000,
-    train_epochs: int = 500,
-    dt: float = 0.01,
+    config: Optional[CHLUConfig] = None,
+    save_dir: Optional[str] = None,
+    seed: Optional[int] = None,
+    train_steps: Optional[int] = None,
+    test_steps: Optional[int] = None,
+    train_epochs: Optional[int] = None,
+    dt: Optional[float] = None,
 ):
     """
     Experiment A: "Eternal Memory" Stability Test.
@@ -38,13 +41,43 @@ def run_experiment_a(
         - CHLU: Stable Figure-8 (Conservation)
     
     Args:
-        save_dir: Directory to save results
-        seed: Random seed for reproducibility
-        train_steps: Number of steps to train on (default: 100)
-        test_steps: Number of steps to extrapolate (default: 10,000)
-        train_epochs: Training epochs per model (default: 500)
-        dt: Time step size
+        config: CHLUConfig object (if None, uses defaults)
+        save_dir: Directory to save results (overrides config)
+        seed: Random seed (overrides config)
+        train_steps: Number of steps to train on (overrides config)
+        test_steps: Number of steps to extrapolate (overrides config)
+        train_epochs: Training epochs per model (overrides config)
+        dt: Time step size (overrides config)
     """
+    # Load config with overrides
+    if config is None:
+        config = get_default_config()
+    
+    # Apply overrides
+    if save_dir is not None:
+        config.project.save_dir = save_dir
+    if seed is not None:
+        config.project.seed = seed
+    if train_steps is not None:
+        config.experiment_a.train_steps = train_steps
+    if test_steps is not None:
+        config.experiment_a.test_steps = test_steps
+    if train_epochs is not None:
+        config.experiment_a.train_epochs = train_epochs
+    if dt is not None:
+        config.experiment_a.dt = dt
+    
+    # Extract values from config
+    save_dir = config.project.save_dir or "results/"
+    seed = config.project.seed
+    train_steps = config.experiment_a.train_steps
+    test_steps = config.experiment_a.test_steps
+    train_epochs = config.experiment_a.train_epochs
+    dt = config.experiment_a.dt
+    chlu_dim = config.experiment_a.chlu_dim
+    node_dim = config.experiment_a.node_dim
+    hidden_dim = config.experiment_a.hidden_dim
+    
     print("\n" + "="*60)
     print("EXPERIMENT A: Eternal Memory Stability Test")
     print("="*60)
@@ -65,13 +98,13 @@ def run_experiment_a(
     print("\n[2/5] Initializing models (CHLU, NODE, LSTM)...")
     k2, k3, k4, k5 = jax.random.split(k2, 4)
     
-    chlu = CHLU(dim=2, hidden=32, key=k3)
-    node = NeuralODE(dim=4, hidden=32, key=k4)  # 4D: (x, y, vx, vy)
-    lstm = LSTMPredictor(dim=4, hidden_size=32, key=k5)
+    chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, key=k3)
+    node = NeuralODE(dim=node_dim, hidden=hidden_dim, key=k4)  # 4D: (x, y, vx, vy)
+    lstm = LSTMPredictor(dim=node_dim, hidden_size=hidden_dim, key=k5)
     
-    print(f"  CHLU initialized (dim=2)")
-    print(f"  NeuralODE initialized (dim=4)")
-    print(f"  LSTM initialized (dim=4, hidden=32)")
+    print(f"  CHLU initialized (dim={chlu_dim}, hidden={hidden_dim})")
+    print(f"  NeuralODE initialized (dim={node_dim}, hidden={hidden_dim})")
+    print(f"  LSTM initialized (dim={node_dim}, hidden={hidden_dim})")
     
     # 3. Train each model on T=100 steps
     print(f"\n[3/5] Training models ({train_epochs} epochs)...")
@@ -82,8 +115,7 @@ def run_experiment_a(
         chlu, 
         train_data, 
         key=k6,
-        epochs=train_epochs,
-        dt=dt,
+        config=config,
     )
     print(f"    Final loss: {chlu_losses[-1]:.6f}")
     
@@ -93,8 +125,7 @@ def run_experiment_a(
         node,
         train_data,
         key=k7,
-        epochs=train_epochs,
-        dt=dt,
+        config=config,
     )
     print(f"    Final loss: {node_losses[-1]:.6f}")
     
@@ -104,7 +135,7 @@ def run_experiment_a(
         lstm,
         train_data,
         key=k8,
-        epochs=train_epochs,
+        config=config,
     )
     print(f"    Final loss: {lstm_losses[-1]:.6f}")
     
