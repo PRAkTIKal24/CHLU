@@ -18,6 +18,7 @@ dependencies = [
     "tqdm",
     "rich",
     "art",
+    "scikit-learn",
 ]
 
 [project.scripts]
