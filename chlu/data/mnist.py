@@ -25,7 +25,7 @@ def load_mnist_pca(dim: int = 32, n_samples: int = None) -> tuple:
     """
     # Load MNIST
     print("Loading MNIST dataset...")
-    mnist = fetch_openml('mnist_784', version=1, parser='auto')
+    mnist = fetch_openml('mnist_784', version=1, as_frame=False, parser='liac-arff')
     X = mnist.data.astype(np.float32) / 255.0  # Normalize to [0, 1]
     
     # Optionally subsample
