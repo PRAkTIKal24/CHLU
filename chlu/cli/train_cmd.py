@@ -121,7 +121,7 @@ def cmd_train_chlu(args):
             train_data = generate_figure8(k1, steps=500, dt=config.training.dt)
             dim = 2
         elif args.data == 'sine':
-            train_data = generate_sine_waves(k1, n_samples=100, steps=200, dt=config.training.dt)
+            train_data = generate_sine_waves(k1, n_waves=100, steps=200, dt=config.training.dt)
             dim = 1
         elif args.data == 'mnist':
             train_imgs, _, _ = load_mnist_pca(dim=config.experiment_c.pca_dim)
@@ -204,7 +204,7 @@ def cmd_train_node(args):
             train_data = generate_figure8(k1, steps=500, dt=config.training.dt)
             dim = 4  # (x, y, vx, vy)
         elif args.data == 'sine':
-            train_data = generate_sine_waves(k1, n_samples=100, steps=200, dt=config.training.dt)
+            train_data = generate_sine_waves(k1, n_waves=100, steps=200, dt=config.training.dt)
             dim = 2  # (x, dx/dt)
         else:
             console.print(f"[red]Neural ODE doesn't support {args.data} dataset[/red]")
@@ -231,7 +231,7 @@ def cmd_train_node(args):
             train_data = generate_figure8(k1, steps=500, dt=config.training.dt)
             dim = 4  # (x, y, vx, vy)
         elif args.data == 'sine':
-            train_data = generate_sine_waves(k1, n_samples=100, steps=200, dt=config.training.dt)
+            train_data = generate_sine_waves(k1, n_waves=100, steps=200, dt=config.training.dt)
             dim = 2  # (x, dx/dt)
         else:
             console.print(f"[red]LSTM doesn't support {args.data} dataset[/red]")
