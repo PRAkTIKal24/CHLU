@@ -10,3 +10,8 @@ coverage.xml
 *.egg-info/
 dist/
 build/
+
+# Ignore individual projects but keep the structure
+projects/*/
+!projects/README.md
+!projects/.gitkeep
