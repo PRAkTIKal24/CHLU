@@ -82,8 +82,10 @@ class DataConfig:
     figure8_dt: float = 0.01
     figure8_scale: float = 1.0
     sine_dt: float = 0.01
-    sine_freq_range: Tuple[float, float] = (0.5, 2.0)
-    sine_amp_range: Tuple[float, float] = (0.5, 1.5)
+    sine_freq_min: float = 0.5
+    sine_freq_max: float = 2.0
+    sine_amp_min: float = 0.5
+    sine_amp_max: float = 1.5
     mnist_pca_dim: int = 32
     train_test_split: float = 0.8
 
