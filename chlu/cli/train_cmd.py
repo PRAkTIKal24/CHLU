@@ -222,58 +222,11 @@ def cmd_train_node(args):
             key=k2,
             config=config
         )
-        # Generate data
-        key = jax.random.PRNGKey(config.project.seed)
-        k1, k2 = jax.random.split(key)
-        
-        console.print(f"  Generating {args.data} data...")
-        if args.data == 'figure8':
-            train_data = generate_figure8(k1, steps=500, dt=config.training.dt)
-            dim = 4  # (x, y, vx, vy)
-        elif args.data == 'sine':
-            train_data = generate_sine_waves(k1, n_waves=100, steps=200, dt=config.training.dt)
-            dim = 2  # (x, dx/dt)
-        else:
-            console.print(f"[red]LSTM doesn't support {args.data} dataset[/red]")
-            return 1
-        
-        console.print(f"  Training data shape: {train_data.shape}")
-        
-        # Initialize and train
-        lstm = LSTMPredictor(dim=dim, hidden_size=config.model.hidden_dim, key=k2)
-        
-        console.print("  Training...")
-        trained_model, losses = train_lstm_fn(
-            lstm,
-            train_data,
-            key=k2,
-            config=config
-        )
         
         console.print(f"  Final loss: {losses[-1]:.6f}")
         
         # Save model
         model_name = create_checkpoint_name(
-            f"lstm_{args.data}",
-            epoch=config.training.epochs,
-            loss=losses[-1]
-        )
-        model_path = paths['models'] / model_name
-        
-        save_checkpoint(
-            trained_model,
-            model_path,
-            epoch=config.training.epochs,
-            loss=losses[-1],
-            config=config,
-            dataset=args.data
-        )
-        
-        console.print(f"[green]✓ Model saved to {model_path}[/green]")
-    except Exception as e:
-        console.print(f"✗ Error: {e}", style="bold red")
-        import traceback
-        traceback.print_exc(
             f"node_{args.data}",
             epoch=config.training.epochs,
             loss=losses[-1]
