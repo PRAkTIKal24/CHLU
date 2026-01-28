@@ -101,15 +101,11 @@ def cmd_exp_a(args):
     if config is None:
         return 1
     
+    # Set save directory in config
+    config.project.save_dir = str(paths['plots'])
+    
     try:
-        run_experiment_a(
-            seed=config.project.seed,
-            train_steps=config.experiment_a.train_steps,
-            test_steps=config.experiment_a.test_steps,
-            train_epochs=config.experiment_a.train_epochs,
-            dt=config.experiment_a.dt,
-            save_dir=str(paths['plots'])
-        )
+        run_experiment_a(config=config)
         console.print("✓ Experiment A completed", style="bold green")
     except Exception as e:
         console.print(f"✗ Error: {e}", style="bold red")
@@ -126,18 +122,11 @@ def cmd_exp_b(args):
     if config is None:
         return 1
     
+    # Set save directory in config
+    config.project.save_dir = str(paths['plots'])
+    
     try:
-        run_experiment_b(
-            seed=config.project.seed,
-            n_waves=config.experiment_b.n_waves,
-            steps=config.experiment_b.steps,
-            train_epochs=config.experiment_b.train_epochs,
-            dt=config.experiment_b.dt,
-            sigma_min=config.experiment_b.sigma_min,
-            sigma_max=config.experiment_b.sigma_max,
-            n_sigma=config.experiment_b.n_sigma,
-            save_dir=str(paths['plots'])
-        )
+        run_experiment_b(config=config)
         console.print("✓ Experiment B completed", style="bold green")
     except Exception as e:
         console.print(f"✗ Error: {e}", style="bold red")
@@ -154,17 +143,11 @@ def cmd_exp_c(args):
     if config is None:
         return 1
     
+    # Set save directory in config
+    config.project.save_dir = str(paths['plots'])
+    
     try:
-        run_experiment_c(
-            seed=config.project.seed,
-            pca_dim=config.experiment_c.pca_dim,
-            train_epochs=config.experiment_c.train_epochs,
-            n_samples=config.experiment_c.n_samples,
-            dream_steps=config.experiment_c.dream_steps,
-            friction=config.experiment_c.friction,
-            dt=config.experiment_c.dt,
-            save_dir=str(paths['plots'])
-        )
+        run_experiment_c(config=config)
         console.print("✓ Experiment C completed", style="bold green")
     except Exception as e:
         console.print(f"✗ Error: {e}", style="bold red")
