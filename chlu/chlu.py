@@ -5,24 +5,83 @@ Main entry point for the CHLU package.
 """
 
 import argparse
-from rich import print as rprint
+import sys
+from rich.console import Console
 from art import text2art
+
+from .cli import (
+    setup_project_parser,
+    setup_experiment_parsers,
+    setup_train_parser,
+    setup_data_parser,
+    setup_utils_parsers
+)
+
+console = Console()
 
 
 def main():
-    """Main entry point for CHLU."""
+    """Main entry point for CHLU CLI."""
     parser = argparse.ArgumentParser(
-        description="CHLU - Causal Hamiltonian Learning Unit"
+        description="CHLU - Causal Hamiltonian Learning Unit",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  uv run chlu project create myexp
+  uv run chlu exp-a --project myexp
+  uv run chlu train chlu --data figure8
+  uv run chlu info
+        """
     )
     
+    # Global options
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='CHLU 0.1.0'
+    )
+    
+    # Create subparsers
+    subparsers = parser.add_subparsers(
+        dest='command',
+        help='Available commands'
+    )
+    
+    # Set up all command parsers
+    setup_project_parser(subparsers)
+    setup_experiment_parsers(subparsers)
+    setup_train_parser(subparsers)
+    setup_data_parser(subparsers)
+    setup_utils_parsers(subparsers)
+    
+    # Parse arguments
     args = parser.parse_args()
     
-    # Display welcome banner
-    banner = text2art("CHLU", font="block")
-    rprint(f"[bold cyan]{banner}[/bold cyan]")
-    rprint("[bold green]Causal Hamiltonian Learning Unit[/bold green]")
-    rprint("\n[dim]Ready to build CHLU functionality...[/dim]\n")
+    # If no command provided, show help
+    if args.command is None:
+        banner = text2art("CHLU", font="block")
+        console.print(f"[bold cyan]{banner}[/bold cyan]")
+        console.print("[bold green]Causal Hamiltonian Learning Unit[/bold green]")
+        console.print("\n[dim]Run with --help to see available commands[/dim]\n")
+        parser.print_help()
+        return 0
+    
+    # Execute the command
+    if hasattr(args, 'func'):
+        try:
+            return args.func(args)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interrupted by user[/yellow]")
+            return 130
+        except Exception as e:
+            console.print(f"[bold red]Unexpected error: {e}[/bold red]")
+            import traceback
+            traceback.print_exc()
+            return 1
+    else:
+        parser.print_help()
+        return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
