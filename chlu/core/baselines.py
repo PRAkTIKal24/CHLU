@@ -113,7 +113,10 @@ class NeuralODE(eqx.Module):
         ts = jnp.arange(t_span[0], t_span[1], dt)
         saveat = diffrax.SaveAt(ts=ts)
         
-        # Solve ODE
+        # Solve ODE with sufficient max_steps for long trajectories
+        # Use 10x the number of output points to be safe
+        max_steps_needed = len(ts) * 10
+        
         solution = diffrax.diffeqsolve(
             term,
             solver,
@@ -122,6 +125,7 @@ class NeuralODE(eqx.Module):
             dt0=dt,
             y0=z0,
             saveat=saveat,
+            max_steps=max_steps_needed,
         )
         
         return solution.ys
