@@ -5,14 +5,15 @@ Validates PCD training and generative capability of CHLU.
 
 import os
 from typing import Optional
+
 import jax
 import jax.numpy as jnp
 
+from chlu.config import CHLUConfig, get_default_config
 from chlu.core.chlu_unit import CHLU
 from chlu.data.mnist import load_mnist_pca
 from chlu.training.train import train_chlu
 from chlu.utils.plotting import plot_dreaming_grid
-from chlu.config import CHLUConfig, get_default_config
 
 
 def run_experiment_c(
@@ -28,18 +29,18 @@ def run_experiment_c(
 ):
     """
     Experiment C: Generative "Dreaming" (MNIST).
-    
+
     Protocol:
         1. Load MNIST (PCA → 32 dims)
         2. Train CHLU with PCD (wake-sleep)
         3. Initialize random noise (q, p)
         4. Run dissipative dynamics with friction γ=0.01
         5. Show evolution: Noise → Hazy → Crisp Digit
-    
+
     Expected outcome:
         Grid of images showing progression from random noise
         to recognizable digit shapes.
-    
+
     Args:
         config: CHLUConfig object (if None, uses defaults)
         save_dir: Directory to save results (overrides config)
@@ -54,7 +55,7 @@ def run_experiment_c(
     # Load config with overrides
     if config is None:
         config = get_default_config()
-    
+
     if save_dir is not None:
         config.project.save_dir = save_dir
     if seed is not None:
@@ -71,7 +72,7 @@ def run_experiment_c(
         config.experiment_c.friction = friction
     if dt is not None:
         config.experiment_c.dt = dt
-    
+
     # Extract values from config
     save_dir = config.project.save_dir or "results/"
     seed = config.project.seed
@@ -87,39 +88,39 @@ def run_experiment_c(
     q_noise_scale = config.experiment_c.q_noise_scale
     p_noise_scale = config.experiment_c.p_noise_scale
     snapshot_steps = config.experiment_c.snapshot_steps
-    
-    print("\n" + "="*60)
+
+    print("\n" + "=" * 60)
     print("EXPERIMENT C: Generative Dreaming (MNIST)")
-    print("="*60)
-    
+    print("=" * 60)
+
     os.makedirs(save_dir, exist_ok=True)
     key = jax.random.PRNGKey(seed)
-    
+
     # 1. Load MNIST with PCA
     print(f"\n[1/4] Loading MNIST (PCA → {pca_dim} dims, {n_samples} samples)...")
     train_data, test_data, pca = load_mnist_pca(dim=pca_dim, n_samples=n_samples)
-    
+
     print(f"  Train data: {train_data.shape}")
     print(f"  PCA explained variance: {pca.explained_variance_ratio_.sum():.2%}")
-    
+
     # Convert to CHLU format: we'll treat PCA features as position q
     # and initialize momentum p to zero (or small random values)
     # For simplicity, we'll stack q and p: [q, p] where both are pca_dim
     k1, k2 = jax.random.split(key)
-    
+
     # Create training data in (q, p) format
     # Start with q = PCA features, p = small random momentum
     n_train = len(train_data)
     p_train = jax.random.normal(k1, (n_train, pca_dim)) * p_train_scale
     train_qp = jnp.concatenate([train_data, p_train], axis=-1)  # (n, 2*pca_dim)
-    
+
     # Reshape for training: add time dimension (treat each sample as single timestep)
     train_qp = train_qp[:, None, :]  # (n, 1, 2*pca_dim)
-    
+
     # 2. Train CHLU with PCD
     print(f"\n[2/4] Training CHLU ({train_epochs} epochs)...")
     k2, k3 = jax.random.split(k2)
-    
+
     chlu = CHLU(dim=pca_dim, hidden=hidden_dim, key=k3)
     chlu, losses = train_chlu(
         chlu,
@@ -127,72 +128,76 @@ def run_experiment_c(
         key=k3,
         config=config,
     )
-    
+
     print(f"  Final loss: {losses[-1]:.6f}")
-    
-    # 3. Generative dreaming: start from random noise
+
+    # 3. Generative Dreaming: Evolving from noise
     print(f"\n[3/4] Dreaming: evolving from noise ({dream_steps} steps)...")
-    
-    k3, k4 = jax.random.split(k3)
-    
-    # Number of dream sequences to visualize
-    n_dreams = 32  # 4x8 grid
-    
-    # Initialize random noise states
+
+    k3, k4, k5 = jax.random.split(k3, 3)
+
+    # Initialize random noise states (Shared for both experiments)
+    # We use the same noise to show the direct effect of friction on the SAME starting point
     q_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * q_noise_scale
     p_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * p_noise_scale
-    
-    # Evolve each noise state with friction (energy dissipation)
-    dream_sequences = []
-    
-    for i in range(n_dreams):
-        q, p = q_noise[i], p_noise[i]
-        sequence = []
-        
-        # Record snapshots at different timesteps
-        current_step = 0
-        
-        for step in range(dream_steps):
-            # Record snapshot
-            if step in snapshot_steps:
-                sequence.append(q)
-                current_step += 1
-            
-            # Evolve one step
-            q, p = chlu.step((q, p), dt)
-            
-            # Apply friction to momentum (energy dissipation)
-            p = (1 - friction) * p
-        
-        # Final snapshot
-        if dream_steps not in snapshot_steps:
-            sequence.append(q)
-        
-        dream_sequences.append(sequence)
-    
-    # 4. Visualize: inverse PCA to get images
-    print("\n[4/4] Creating visualization...")
-    
-    # Take final states from dreams
-    final_states = jnp.array([seq[-1] for seq in dream_sequences])
-    
-    # Inverse PCA transform
-    final_images = pca.inverse_transform(final_states)
-    
-    # Reshape to 28x28
-    final_images = final_images.reshape(-1, 28, 28)
-    
-    # Plot
-    save_path = os.path.join(save_dir, "exp3_dreaming.png")
-    plot_dreaming_grid(
-        final_images, 
-        save_path, 
-        n_rows=4, 
-        n_cols=8,
-        image_shape=(28, 28)
+
+    # Convert config list to a JAX array for indexing
+    # Ensure they are within bounds of dream_steps
+    snap_indices = jnp.array([t for t in snapshot_steps if t < dream_steps])
+
+    def run_dream_batch(gamma_val, desc):
+        print(f"  Running {desc} batch (gamma={gamma_val})...")
+        batch_snapshots = []
+        batch_final = []
+
+        for i in range(n_dreams):
+            q, p = q_noise[i], p_noise[i]
+
+            # 1. Run full physics (Fast JAX loop)
+            # trajectory shape: (dream_steps, 2*pca_dim)
+            trajectory = chlu(q, p, steps=dream_steps, dt=dt, gamma=gamma_val)
+
+            # 2. Extract Position (q)
+            qs = trajectory[:, :pca_dim]
+
+            # 3. Extract Snapshots (Efficient slicing)
+            # This replaces your manual "if step in snapshot_steps" check
+            snaps = qs[snap_indices]
+            batch_snapshots.append(snaps)
+
+            # 4. Extract Final State (Ground State)
+            batch_final.append(qs[-1])
+
+        return jnp.array(batch_final), jnp.array(batch_snapshots)
+
+    # Run experiments
+    # EXPERIMENT A: The "Ghosts" (Conserved Energy)
+    # gamma=0.0 : Physics mode. Particles orbit the concept.
+    final_states_ghosts, snaps_ghosts = run_dream_batch(0.0, "Ghost (No Friction)")
+
+    # EXPERIMENT B: The "Ground States" (Annealed)
+    # gamma=friction : Denoising mode. Particles fall into the well.
+    final_states_annealed, snaps_annealed = run_dream_batch(
+        friction, "Annealed (With Friction)"
     )
-    
-    print("\n" + "="*60)
+
+    # 4. Visualize: Inverse PCA and Plot Side-by-Side
+    print("\n[4/4] Creating visualization...")
+
+    def decode_and_plot(states, filename, title):
+        # Inverse PCA
+        images = pca.inverse_transform(states)
+        images = images.reshape(-1, 28, 28)
+
+        # Save
+        full_path = os.path.join(save_dir, filename)
+        plot_dreaming_grid(images, full_path, n_rows=4, n_cols=8, image_shape=(28, 28))
+        print(f"  Saved {title} to {full_path}")
+
+    # Plot both
+    decode_and_plot(final_states_ghosts, "exp3_ghosts.png", "Orbital Ghosts")
+    decode_and_plot(final_states_annealed, "exp3_annealed.png", "Annealed Digits")
+
+    print("\n" + "=" * 60)
     print("EXPERIMENT C COMPLETE!")
-    print(f"Results saved to: {save_path}")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
