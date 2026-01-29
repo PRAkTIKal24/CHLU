@@ -101,8 +101,8 @@ def train_chlu(
             q0, p0 = q_true[0], p_true[0]
             pred_trajectory = model(q0, p0, steps=len(trajectory), dt=dt)
 
-            # MSE loss
-            mse = mse_loss(pred_trajectory, trajectory)
+            # MSE loss, weighted by clamp_strength
+            mse = 100 * mse_loss(pred_trajectory, trajectory)
 
             # Lyapunov regularization
             lyap_loss = compute_lyapunov_loss(
@@ -135,8 +135,10 @@ def train_chlu(
 
             q_evolved, p_evolved = jax.vmap(evolve_single)(q_batch, p_batch)
 
-            # Minimize final energy
-            return energy_loss(model, q_evolved, p_evolved)
+            # Negative sign because we want to *maximize* sleep energy
+            sleep_energy = -energy_loss(model, q_evolved, p_evolved)
+
+            return sleep_energy
 
         loss, grads = eqx.filter_value_and_grad(loss_fn)(model)
         updates, opt_state = optimizer.update(grads, opt_state, model)
@@ -153,9 +155,7 @@ def train_chlu(
         traj_idx = jax.random.randint(k2, (), 0, n_trajectories)
         trajectory = data[traj_idx]
 
-        model, opt_state, wake_loss = wake_step(
-            model, opt_state, trajectory, k3
-        )
+        model, opt_state, wake_loss = wake_step(model, opt_state, trajectory, k3)
 
         # Sleep phase (every few epochs to save compute)
         if epoch % sleep_frequency == 0:
