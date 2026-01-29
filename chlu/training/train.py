@@ -154,7 +154,7 @@ def train_chlu(
         trajectory = data[traj_idx]
 
         model, opt_state, wake_loss = wake_step(
-            model, opt_state, trajectory, k3, sleep_friction
+            model, opt_state, trajectory, k3
         )
 
         # Sleep phase (every few epochs to save compute)
@@ -165,6 +165,7 @@ def train_chlu(
                 opt_state,
                 buffer,
                 k4,
+                sleep_friction,
             )
 
         losses.append(float(wake_loss))
