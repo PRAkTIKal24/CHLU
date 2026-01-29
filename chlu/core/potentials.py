@@ -65,6 +65,6 @@ class PotentialMLP(eqx.Module):
 
         # Global confinement potential
         # This ensures V(q) -> inf as q -> inf
-        v_g = 0.03 * jnp.sum(q**2)
+        v_g = 0.001 * jnp.sum(q**2)
 
         return v_n + v_g
