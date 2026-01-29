@@ -16,7 +16,11 @@ from chlu.data.sine_waves import add_noise, generate_sine_waves
 from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_lstm, train_neural_ode
 from chlu.utils.metrics import compute_mse
-from chlu.utils.plotting import plot_noise_curves
+from chlu.utils.plotting import (
+    plot_noise_curves,
+    plot_sine_wave_comparison,
+    plot_phase_space,
+)
 
 
 def run_experiment_b(
@@ -144,6 +148,12 @@ def run_experiment_b(
 
     sigmas = jnp.linspace(sigma_min, sigma_max, n_sigma)
     mse_chlu, mse_node, mse_lstm = [], [], []
+    
+    # Store predictions for visualization (at middle noise level)
+    mid_sigma_idx = n_sigma // 2
+    mid_sigma = sigmas[mid_sigma_idx]
+    stored_predictions = None
+    stored_noisy_data = None
 
     for i, sigma in enumerate(sigmas):
         print(f"  Noise σ = {sigma:.2f} ({i + 1}/{n_sigma})")
@@ -151,6 +161,12 @@ def run_experiment_b(
         # Add noise to test data
         k5, k6 = jax.random.split(k5)
         noisy_test = add_noise(test_data, k6, sigma)
+
+        # Store data for visualization at middle noise level
+        should_store = (i == mid_sigma_idx)
+        if should_store:
+            stored_noisy_data = noisy_test
+            stored_predictions = {"LSTM": [], "NODE": [], "CHLU": []}
 
         # Evaluate each model
         # For CHLU: run dynamics from noisy initial conditions
@@ -190,6 +206,9 @@ def run_experiment_b(
 
             # Compare against clean data
             errors_chlu.append(compute_mse(pred_traj, clean_seq))
+            
+            if should_store:
+                stored_predictions["CHLU"].append(pred_traj)
 
         # Neural ODE
         errors_node = []
@@ -197,6 +216,9 @@ def run_experiment_b(
             z0_noisy = noisy_test[j, 0]
             pred_traj = node(z0_noisy, (0.0, steps * dt), dt)
             errors_node.append(compute_mse(pred_traj, test_data[j]))
+            
+            if should_store:
+                stored_predictions["NODE"].append(pred_traj)
 
         # LSTM
         errors_lstm = []
@@ -204,13 +226,16 @@ def run_experiment_b(
             x0_noisy = noisy_test[j, 0]
             pred_traj = lstm.generate(x0_noisy, steps=steps)
             errors_lstm.append(compute_mse(pred_traj, test_data[j]))
+            
+            if should_store:
+                stored_predictions["LSTM"].append(pred_traj)
 
         mse_chlu.append(jnp.mean(jnp.array(errors_chlu)))
         mse_node.append(jnp.mean(jnp.array(errors_node)))
         mse_lstm.append(jnp.mean(jnp.array(errors_lstm)))
 
     # 4. Plot results
-    print("\n[4/4] Creating visualization...")
+    print("\n[4/4] Creating visualizations...")
 
     mse_dict = {
         "LSTM": jnp.array(mse_lstm),
@@ -218,10 +243,42 @@ def run_experiment_b(
         "CHLU": jnp.array(mse_chlu),
     }
 
+    # Noise curve
     save_path = os.path.join(save_dir, "exp2_noise_curve.png")
     plot_noise_curves(sigmas, mse_dict, save_path)
+    
+    # Sine wave comparison (using stored predictions from middle noise level)
+    if stored_predictions is not None:
+        # Convert lists to arrays
+        for key in stored_predictions:
+            stored_predictions[key] = jnp.array(stored_predictions[key])
+        
+        save_path_waves = os.path.join(save_dir, "exp2_sine_wave_comparison.png")
+        plot_sine_wave_comparison(
+            test_data,
+            stored_noisy_data,
+            stored_predictions,
+            save_path_waves,
+            n_examples=3,
+            sigma=float(mid_sigma),
+        )
+        
+        # Phase space plot
+        save_path_phase = os.path.join(save_dir, "exp2_phase_space.png")
+        plot_phase_space(
+            test_data,
+            stored_noisy_data,
+            stored_predictions,
+            save_path_phase,
+            n_examples=3,
+            sigma=float(mid_sigma),
+        )
 
     print("\n" + "=" * 60)
     print("EXPERIMENT B COMPLETE!")
-    print(f"Results saved to: {save_path}")
+    print(f"Results saved to:")
+    print(f"  - {save_path}")
+    if stored_predictions is not None:
+        print(f"  - {save_path_waves}")
+        print(f"  - {save_path_phase}")
     print("=" * 60 + "\n")
