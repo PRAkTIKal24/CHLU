@@ -14,7 +14,11 @@ from chlu.core.chlu_unit import CHLU
 from chlu.data.figure8 import generate_figure8
 from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_lstm, train_neural_ode
-from chlu.utils.plotting import plot_three_panel_trajectories
+from chlu.utils.plotting import (
+    plot_three_panel_trajectories,
+    plot_trajectory_evolution,
+    create_trajectory_animation,
+)
 
 
 def run_experiment_a(
@@ -172,10 +176,23 @@ def run_experiment_a(
         "CHLU:",
     ]
 
+    # Original three-panel plot
     save_path = os.path.join(save_dir, "exp1_stability.png")
     plot_three_panel_trajectories(trajectories, full_trajectory, titles, save_path)
 
+    # Evolution plot with transparent lines
+    save_path_evolution = os.path.join(save_dir, "exp1_stability_evolution.png")
+    plot_trajectory_evolution(trajectories, full_trajectory, titles, save_path_evolution, n_snapshots=10)
+
+    # Animated GIF
+    save_path_gif = os.path.join(save_dir, "exp1_stability_animation.gif")
+    print("  Creating animation (this may take a moment)...")
+    create_trajectory_animation(trajectories, full_trajectory, titles, save_path_gif, fps=20, n_frames=100)
+
     print("\n" + "=" * 60)
     print("EXPERIMENT A COMPLETE!")
-    print(f"Results saved to: {save_path}")
+    print(f"Results saved to:")
+    print(f"  - {save_path}")
+    print(f"  - {save_path_evolution}")
+    print(f"  - {save_path_gif}")
     print("=" * 60 + "\n")
