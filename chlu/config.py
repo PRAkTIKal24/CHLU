@@ -31,6 +31,7 @@ class TrainingConfig:
     dt: float = 0.01
     lyapunov_lambda: float = 0.01
     sleep_steps: int = 10
+    sleep_friction: float = 0.0
     sleep_frequency: int = 5
     buffer_capacity: int = 1024
 
@@ -55,6 +56,8 @@ class ExperimentBConfig:
     n_waves: int = 100
     steps: int = 200
     train_epochs: int = 500
+    sleep_friction: float = 0.01
+    friction_ramp: float = 0.2
     dt: float = 0.01
     sigma_min: float = 0.1
     sigma_max: float = 1.0
@@ -148,12 +151,22 @@ def load_config(path: Path) -> CHLUConfig:
     # Reconstruct nested dataclasses with field filtering
     config = CHLUConfig(
         model=ModelConfig(**filter_valid_fields(ModelConfig, data.get("model", {}))),
-        training=TrainingConfig(**filter_valid_fields(TrainingConfig, data.get("training", {}))),
-        experiment_a=ExperimentAConfig(**filter_valid_fields(ExperimentAConfig, data.get("experiment_a", {}))),
-        experiment_b=ExperimentBConfig(**filter_valid_fields(ExperimentBConfig, data.get("experiment_b", {}))),
-        experiment_c=ExperimentCConfig(**filter_valid_fields(ExperimentCConfig, data.get("experiment_c", {}))),
+        training=TrainingConfig(
+            **filter_valid_fields(TrainingConfig, data.get("training", {}))
+        ),
+        experiment_a=ExperimentAConfig(
+            **filter_valid_fields(ExperimentAConfig, data.get("experiment_a", {}))
+        ),
+        experiment_b=ExperimentBConfig(
+            **filter_valid_fields(ExperimentBConfig, data.get("experiment_b", {}))
+        ),
+        experiment_c=ExperimentCConfig(
+            **filter_valid_fields(ExperimentCConfig, data.get("experiment_c", {}))
+        ),
         data=DataConfig(**filter_valid_fields(DataConfig, data.get("data", {}))),
-        project=ProjectConfig(**filter_valid_fields(ProjectConfig, data.get("project", {}))),
+        project=ProjectConfig(
+            **filter_valid_fields(ProjectConfig, data.get("project", {}))
+        ),
     )
     return config
 
