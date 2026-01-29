@@ -16,7 +16,7 @@ import yaml
 class ModelConfig:
     """Model architecture parameters."""
 
-    hidden_dim: int = 32
+    hidden_dim: int = 64
     rest_mass: float = 1.0
     log_mass_init_scale: float = 0.1
 
@@ -28,9 +28,9 @@ class TrainingConfig:
     epochs: int = 1000
     learning_rate: float = 1e-3
     batch_size: int = 32
-    dt: float = 0.01
+    dt: float = 0.05
     lyapunov_lambda: float = 0.01
-    sleep_steps: int = 10
+    sleep_steps: int = 100
     sleep_friction: float = 0.0
     sleep_frequency: int = 5
     buffer_capacity: int = 1024
@@ -43,10 +43,10 @@ class ExperimentAConfig:
     train_steps: int = 100
     test_steps: int = 10000
     train_epochs: int = 500
-    dt: float = 0.01
+    dt: float = 0.05
     # Note: chlu_dim is always 2 for Figure-8 (not configurable)
     node_dim: int = 4
-    hidden_dim: int = 32
+    hidden_dim: int = 64
 
 
 @dataclass
@@ -58,25 +58,25 @@ class ExperimentBConfig:
     train_epochs: int = 500
     sleep_friction: float = 0.01
     friction_ramp: float = 0.2
-    dt: float = 0.01
+    dt: float = 0.05
     sigma_min: float = 0.1
     sigma_max: float = 1.0
     n_sigma: int = 10
     chlu_dim: int = 1
     node_dim: int = 2
-    hidden_dim: int = 32
+    hidden_dim: int = 64
 
 
 @dataclass
 class ExperimentCConfig:
     """Configuration for Experiment C: Dreaming/Generation."""
 
-    pca_dim: int = 32
+    pca_dim: int = 64
     train_epochs: int = 1000
     n_samples: int = 5000
     dream_steps: int = 100
     friction: float = 0.01
-    dt: float = 0.01
+    dt: float = 0.05
     n_dreams: int = 32
     hidden_dim: int = 32
     p_train_scale: float = 0.1
