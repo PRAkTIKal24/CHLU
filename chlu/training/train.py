@@ -91,7 +91,7 @@ def train_chlu(
     losses = []
 
     @eqx.filter_jit
-    def wake_step(model, opt_state, trajectory, key):
+    def wake_step(model, opt_state, trajectory, key, epoch, epochs):
         """Wake phase: supervised learning."""
         q_true = trajectory[:, :dim]
         p_true = trajectory[:, dim:]
@@ -101,8 +101,13 @@ def train_chlu(
             q0, p0 = q_true[0], p_true[0]
             pred_trajectory = model(q0, p0, steps=len(trajectory), dt=dt)
 
-            # MSE loss, weighted by clamp_strength
-            mse = 100 * mse_loss(pred_trajectory, trajectory)
+            # MSE loss, weighted by clamp_strength - start high
+            clamp_strength = 100
+
+            # clamp_strength annealing
+            schedule = epoch / epochs
+            clamp_strength = clamp_strength * (1 - schedule) + 0.1
+            mse = clamp_strength * mse_loss(pred_trajectory, trajectory)
 
             # Lyapunov regularization
             lyap_loss = compute_lyapunov_loss(
@@ -155,7 +160,13 @@ def train_chlu(
         traj_idx = jax.random.randint(k2, (), 0, n_trajectories)
         trajectory = data[traj_idx]
 
-        model, opt_state, wake_loss = wake_step(model, opt_state, trajectory, k3)
+        # Convert epoch values to jax arrays for clamp_strength annealing
+        epoch_jax = jnp.array(epoch)
+        epochs_jax = jnp.array(epochs)
+
+        model, opt_state, wake_loss = wake_step(
+            model, opt_state, trajectory, k3, epoch_jax, epochs_jax
+        )
 
         # Sleep phase (every few epochs to save compute)
         if epoch % sleep_frequency == 0:
