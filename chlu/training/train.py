@@ -108,8 +108,8 @@ def train_chlu(
             # clamp_strength annealing using jnp.where to avoid tracer boolean conversion
             schedule = epoch / epochs_ramp
             annealed_clamp = clamp_strength * (1 - schedule) + 1.0
-            clamp_strength = jnp.where(epoch < epochs_ramp, annealed_clamp, 1.0)
-            mse = clamp_strength * mse_loss(pred_trajectory, trajectory)
+            effective_clamp = jnp.where(epoch < epochs_ramp, annealed_clamp, 1.0)
+            mse = effective_clamp * mse_loss(pred_trajectory, trajectory)
 
             # Lyapunov regularization
             lyap_loss = compute_lyapunov_loss(
