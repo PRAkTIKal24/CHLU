@@ -12,6 +12,13 @@ from chlu.config import CHLUConfig, get_default_config
 from chlu.training.losses import mse_loss
 
 
+def sample_window(key: jax.random.PRNGKey, data: jnp.ndarray, window_size: int) -> jnp.ndarray:
+    """Sample a random window from trajectory data."""
+    max_start = len(data) - window_size
+    idx = jax.random.randint(key, (), 0, max_start)
+    return data[idx : idx + window_size]
+
+
 def train_neural_ode(
     model,
     data: jnp.ndarray,
@@ -20,6 +27,7 @@ def train_neural_ode(
     epochs: Optional[int] = None,
     lr: Optional[float] = None,
     dt: Optional[float] = None,
+    window_size: Optional[int] = None,
 ):
     """
     Train Neural ODE with standard supervised learning.
@@ -32,6 +40,7 @@ def train_neural_ode(
         epochs: Number of epochs (overrides config)
         lr: Learning rate (overrides config)
         dt: Time step (overrides config)
+        window_size: Window size for sub-sequence sampling (overrides config)
 
     Returns:
         (trained_model, losses): Trained model and loss history
@@ -46,12 +55,22 @@ def train_neural_ode(
         lr = config.training.learning_rate
     if dt is None:
         dt = config.training.dt
+    if window_size is None:
+        # Use experiment A config if available, otherwise use full trajectory
+        if hasattr(config, 'experiment_a') and hasattr(config.experiment_a, 'window_size'):
+            window_size = config.experiment_a.window_size
+        else:
+            window_size = None  # Will be set below
 
     # Handle data shape
     if data.ndim == 2:
         data = data[None, :, :]
 
     n_trajectories, T, dim = data.shape
+    
+    # Set window_size if not provided
+    if window_size is None:
+        window_size = T  # Use full trajectory if no window specified
 
     # Initialize optimizer
     optimizer = optax.adam(lr)
@@ -61,12 +80,12 @@ def train_neural_ode(
 
     @eqx.filter_jit
     def train_step(model, opt_state, trajectory):
-        """Single training step."""
+        """Single training step on trajectory window."""
 
         def loss_fn(model):
             # Predict trajectory from initial state
             z0 = trajectory[0]
-            t_span = (0.0, T * dt)
+            t_span = (0.0, len(trajectory) * dt)
             pred_trajectory = model(z0, t_span, dt)
 
             # MSE loss
@@ -82,9 +101,13 @@ def train_neural_ode(
     for _epoch in tqdm(range(epochs), desc="Training Neural ODE"):
         # Sample random trajectory
         traj_idx = jax.random.randint(key, (), 0, n_trajectories)
-        key = jax.random.split(key)[0]
+        key, subkey = jax.random.split(key)
 
-        trajectory = data[traj_idx]
+        full_trajectory = data[traj_idx]
+        
+        # Sample random window from the trajectory
+        trajectory = sample_window(subkey, full_trajectory, window_size)
+        
         model, opt_state, loss = train_step(model, opt_state, trajectory)
 
         losses.append(float(loss))
@@ -99,6 +122,7 @@ def train_lstm(
     config: Optional[CHLUConfig] = None,
     epochs: Optional[int] = None,
     lr: Optional[float] = None,
+    window_size: Optional[int] = None,
 ):
     """
     Train LSTM for next-step prediction.
@@ -110,6 +134,7 @@ def train_lstm(
         config: CHLUConfig object (if None, uses defaults)
         epochs: Number of epochs (overrides config)
         lr: Learning rate (overrides config)
+        window_size: Window size for sub-sequence sampling (overrides config)
 
     Returns:
         (trained_model, losses): Trained model and loss history
@@ -122,12 +147,22 @@ def train_lstm(
         epochs = config.training.epochs
     if lr is None:
         lr = config.training.learning_rate
+    if window_size is None:
+        # Use experiment A config if available, otherwise use full trajectory
+        if hasattr(config, 'experiment_a') and hasattr(config.experiment_a, 'window_size'):
+            window_size = config.experiment_a.window_size
+        else:
+            window_size = None  # Will be set below
 
     # Handle data shape
     if data.ndim == 2:
         data = data[None, :, :]
 
     n_sequences, T, dim = data.shape
+    
+    # Set window_size if not provided
+    if window_size is None:
+        window_size = T  # Use full trajectory if no window specified
 
     # Initialize optimizer
     optimizer = optax.adam(lr)
@@ -137,7 +172,7 @@ def train_lstm(
 
     @eqx.filter_jit
     def train_step(model, opt_state, sequence):
-        """Single training step."""
+        """Single training step on sequence window."""
 
         def loss_fn(model):
             # Input: x[:-1], Target: x[1:]
@@ -160,9 +195,13 @@ def train_lstm(
     for _epoch in tqdm(range(epochs), desc="Training LSTM"):
         # Sample random sequence
         seq_idx = jax.random.randint(key, (), 0, n_sequences)
-        key = jax.random.split(key)[0]
+        key, subkey = jax.random.split(key)
 
-        sequence = data[seq_idx]
+        full_sequence = data[seq_idx]
+        
+        # Sample random window from the sequence
+        sequence = sample_window(subkey, full_sequence, window_size)
+        
         model, opt_state, loss = train_step(model, opt_state, sequence)
 
         losses.append(float(loss))

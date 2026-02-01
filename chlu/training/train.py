@@ -14,6 +14,23 @@ from chlu.training.losses import energy_loss, mse_loss
 from chlu.training.replay_buffer import ReplayBuffer
 
 
+def sample_window(key: jax.random.PRNGKey, data: jnp.ndarray, window_size: int) -> jnp.ndarray:
+    """
+    Sample a random window from trajectory data.
+    
+    Args:
+        key: JAX random key
+        data: Trajectory data of shape (T, dim)
+        window_size: Size of the window to sample
+        
+    Returns:
+        Window of shape (window_size, dim)
+    """
+    max_start = len(data) - window_size
+    idx = jax.random.randint(key, (), 0, max_start)
+    return data[idx : idx + window_size]
+
+
 def train_chlu(
     model,
     data: jnp.ndarray,
@@ -26,6 +43,7 @@ def train_chlu(
     buffer_capacity: Optional[int] = None,
     batch_size: Optional[int] = None,
     dt: Optional[float] = None,
+    window_size: Optional[int] = None,
 ):
     """
     Train CHLU using Persistent Contrastive Divergence (Wake-Sleep).
@@ -45,6 +63,7 @@ def train_chlu(
         buffer_capacity: Replay buffer capacity (overrides config)
         batch_size: Batch size for sleep phase (overrides config)
         dt: Time step for dynamics (overrides config)
+        window_size: Window size for sub-sequence sampling (overrides config)
 
     Returns:
         (trained_model, losses): Trained model and loss history
@@ -68,6 +87,12 @@ def train_chlu(
         batch_size = config.training.batch_size
     if dt is None:
         dt = config.training.dt
+    if window_size is None:
+        # Use experiment A config if available, otherwise use full trajectory
+        if hasattr(config, 'experiment_a') and hasattr(config.experiment_a, 'window_size'):
+            window_size = config.experiment_a.window_size
+        else:
+            window_size = None  # Will be set below
 
     sleep_frequency = config.training.sleep_frequency
     sleep_friction = config.training.sleep_friction
@@ -80,6 +105,10 @@ def train_chlu(
 
     n_trajectories, T, state_dim = data.shape
     dim = state_dim // 2
+    
+    # Set window_size if not provided
+    if window_size is None:
+        window_size = T  # Use full trajectory if no window specified
 
     # Initialize optimizer
     optimizer = optax.adam(lr)
@@ -96,7 +125,7 @@ def train_chlu(
     def wake_step(
         model, opt_state, trajectory, key, epoch, epochs_ramp, clamp_strength
     ):
-        """Wake phase: supervised learning."""
+        """Wake phase: supervised learning on trajectory window."""
         q_true = trajectory[:, :dim]
         p_true = trajectory[:, dim:]
 
@@ -106,7 +135,7 @@ def train_chlu(
         effective_clamp = jnp.where(epoch < epochs_ramp, annealed_clamp, 1.0)
 
         def loss_fn(model):
-            # Run CHLU dynamics from initial state
+            # Run CHLU dynamics from initial state for window_size steps
             q0, p0 = q_true[0], p_true[0]
             pred_trajectory = model(q0, p0, steps=len(trajectory), dt=dt)
 
@@ -162,19 +191,24 @@ def train_chlu(
     for epoch in tqdm(range(epochs), desc="Training CHLU"):
         k2, k3 = jax.random.split(k2)
 
-        # Wake phase: train on random trajectory
+        # Sample random trajectory
         traj_idx = jax.random.randint(k2, (), 0, n_trajectories)
-        trajectory = data[traj_idx]
+        full_trajectory = data[traj_idx]
+        
+        # Sample random window from the trajectory
+        k3, k4 = jax.random.split(k3)
+        trajectory = sample_window(k4, full_trajectory, window_size)
 
         # Convert epoch values to jax arrays for clamp_strength annealing
         epoch_jax = jnp.array(epoch)
         epochs_ramp_jax = jnp.array(clamp_ramp * epochs)
 
+        k4, k5 = jax.random.split(k4)
         model, opt_state, wake_loss = wake_step(
             model,
             opt_state,
             trajectory,
-            k3,
+            k5,
             epoch_jax,
             epochs_ramp_jax,
             clamp_strength,
@@ -182,12 +216,12 @@ def train_chlu(
 
         # Sleep phase (every few epochs to save compute)
         if epoch % sleep_frequency == 0:
-            k3, k4 = jax.random.split(k3)
+            k5, k6 = jax.random.split(k5)
             model, opt_state, sleep_loss = sleep_step(
                 model,
                 opt_state,
                 buffer,
-                k4,
+                k6,
                 sleep_friction,
             )
 
