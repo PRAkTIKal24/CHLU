@@ -83,6 +83,7 @@ def run_experiment_a(
     train_steps = config.experiment_a.train_steps
     test_steps = config.experiment_a.test_steps
     steps_per_cycle = config.experiment_a.steps_per_cycle
+    n_final_cycles_to_plot = config.experiment_a.n_final_cycles_to_plot
     # Figure-8 is always 2D in position space (x,y) -> chlu_dim must be 2
     chlu_dim = 2
     node_dim = config.experiment_a.node_dim
@@ -201,7 +202,12 @@ def run_experiment_a(
     # Original three-panel plot comparing against test ground truth
     save_path = os.path.join(save_dir, "exp1_stability.png")
     plot_three_panel_trajectories(
-        trajectories, test_data, titles, save_path, steps_per_cycle=steps_per_cycle
+        trajectories,
+        test_data,
+        titles,
+        save_path,
+        steps_per_cycle=steps_per_cycle,
+        n_cycles_to_show=n_final_cycles_to_plot,
     )
 
     # Evolution plot with transparent lines
@@ -213,6 +219,7 @@ def run_experiment_a(
         save_path_evolution,
         n_snapshots=10,
         steps_per_cycle=steps_per_cycle,
+        n_cycles_solid=n_final_cycles_to_plot,
     )
 
     # Animated GIF

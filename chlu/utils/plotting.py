@@ -12,70 +12,83 @@ def plot_three_panel_trajectories(
     titles: list,
     save_path: str,
     steps_per_cycle: int = None,
+    n_cycles_to_show: int = 3,
 ):
     """
     Plot three-panel figure comparing model trajectories.
     
     Used for Experiment A: Stability comparison.
-    Shows only the last cycle for focused comparison.
+    Shows only the last N cycles for focused comparison.
     
     Args:
         trajectories: Dict with keys "LSTM", "NODE", "CHLU" and trajectory arrays
         ground_truth: Ground truth trajectory (T, 4) [x, y, vx, vy]
         titles: List of 3 subplot titles
         save_path: Path to save figure
-        steps_per_cycle: If provided, only plot the last cycle
+        steps_per_cycle: If provided, only plot the last n_cycles_to_show cycles
+        n_cycles_to_show: Number of final cycles to display (default: 3)
     """
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     
-    # Extract last cycle if steps_per_cycle is provided
+    # Extract last N cycles if steps_per_cycle is provided
     if steps_per_cycle is not None:
-        gt_plot = ground_truth[-steps_per_cycle:]
+        steps_to_show = n_cycles_to_show * steps_per_cycle
+        gt_plot = ground_truth[-steps_to_show:]
     else:
         gt_plot = ground_truth
     
     # Plot ground truth on all panels (in gray)
     for ax in axes:
+        label = f'Ground Truth (Last {n_cycles_to_show} Cycles)' if steps_per_cycle else 'Ground Truth'
         ax.plot(
             gt_plot[:, 0], 
             gt_plot[:, 1], 
             'gray', 
             alpha=0.3, 
             linewidth=2,
-            label='Ground Truth (Last Cycle)' if steps_per_cycle else 'Ground Truth'
+            label=label
         )
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
     
-    # Plot LSTM (left panel) - last cycle only
+    # Plot LSTM (left panel) - last N cycles
     lstm_traj = trajectories["LSTM"]
     if steps_per_cycle is not None:
-        lstm_plot = lstm_traj[-steps_per_cycle:]
+        steps_to_show = n_cycles_to_show * steps_per_cycle
+        lstm_plot = lstm_traj[-steps_to_show:]
+        label = f'LSTM (Last {n_cycles_to_show} Cycles)'
     else:
         lstm_plot = lstm_traj
-    axes[0].plot(lstm_plot[:, 0], lstm_plot[:, 1], 'r-', linewidth=1.5, label='LSTM (Last Cycle)' if steps_per_cycle else 'LSTM')
+        label = 'LSTM'
+    axes[0].plot(lstm_plot[:, 0], lstm_plot[:, 1], 'r-', linewidth=1.5, label=label)
     axes[0].set_title(titles[0])
     axes[0].legend()
     
-    # Plot NODE (middle panel) - last cycle only
+    # Plot NODE (middle panel) - last N cycles
     node_traj = trajectories["NODE"]
     if steps_per_cycle is not None:
-        node_plot = node_traj[-steps_per_cycle:]
+        steps_to_show = n_cycles_to_show * steps_per_cycle
+        node_plot = node_traj[-steps_to_show:]
+        label = f'NODE (Last {n_cycles_to_show} Cycles)'
     else:
         node_plot = node_traj
-    axes[1].plot(node_plot[:, 0], node_plot[:, 1], 'orange', linewidth=1.5, label='NODE (Last Cycle)' if steps_per_cycle else 'NODE')
+        label = 'NODE'
+    axes[1].plot(node_plot[:, 0], node_plot[:, 1], 'orange', linewidth=1.5, label=label)
     axes[1].set_title(titles[1])
     axes[1].legend()
     
-    # Plot CHLU (right panel) - last cycle only
+    # Plot CHLU (right panel) - last N cycles
     chlu_traj = trajectories["CHLU"]
     if steps_per_cycle is not None:
-        chlu_plot = chlu_traj[-steps_per_cycle:]
+        steps_to_show = n_cycles_to_show * steps_per_cycle
+        chlu_plot = chlu_traj[-steps_to_show:]
+        label = f'CHLU (Last {n_cycles_to_show} Cycles)'
     else:
         chlu_plot = chlu_traj
-    axes[2].plot(chlu_plot[:, 0], chlu_plot[:, 1], 'g-', linewidth=1.5, label='CHLU (Last Cycle)' if steps_per_cycle else 'CHLU')
+        label = 'CHLU'
+    axes[2].plot(chlu_plot[:, 0], chlu_plot[:, 1], 'g-', linewidth=1.5, label=label)
     axes[2].set_title(titles[2])
     axes[2].legend()
     
@@ -171,13 +184,14 @@ def plot_trajectory_evolution(
     save_path: str,
     n_snapshots: int = 10,
     steps_per_cycle: int = None,
+    n_cycles_solid: int = 3,
 ):
     """
     Plot trajectory evolution with transparent intermediate steps and final trajectory.
     
     Shows how each model's trajectory evolves over time with progressive snapshots.
-    If steps_per_cycle is provided, shows first 49 cycles very lightly and 
-    only the last (50th) cycle in solid color.
+    If steps_per_cycle is provided, shows first cycles very lightly and 
+    only the last N cycles in solid color.
     
     Args:
         trajectories: Dict with keys "LSTM", "NODE", "CHLU" and trajectory arrays
@@ -185,7 +199,8 @@ def plot_trajectory_evolution(
         titles: List of 3 subplot titles
         save_path: Path to save figure
         n_snapshots: Number of intermediate snapshots to show
-        steps_per_cycle: If provided, plot first N-1 cycles very lightly, last cycle solid
+        steps_per_cycle: If provided, plot first cycles lightly, last n_cycles_solid solid
+        n_cycles_solid: Number of final cycles to show in solid color (default: 3)
     """
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     
@@ -193,28 +208,29 @@ def plot_trajectory_evolution(
     colors = ['red', 'orange', 'green']
     
     for idx, (ax, model_name, color, title) in enumerate(zip(axes, model_names, colors, titles)):
-        # Plot ground truth - first 49 cycles lightly, last cycle solid
+        # Plot ground truth - first cycles lightly, last N cycles solid
         if steps_per_cycle is not None:
-            # First 49 cycles very light
-            gt_early = ground_truth[:-steps_per_cycle]
+            steps_solid = n_cycles_solid * steps_per_cycle
+            # First cycles slightly transparent
+            gt_early = ground_truth[:-steps_solid]
             if len(gt_early) > 0:
                 ax.plot(
                     gt_early[:, 0], 
                     gt_early[:, 1], 
                     'gray', 
-                    alpha=0.08, 
+                    alpha=0.15, 
                     linewidth=1,
                     zorder=1
                 )
-            # Last cycle solid
-            gt_last = ground_truth[-steps_per_cycle:]
+            # Last N cycles solid
+            gt_last = ground_truth[-steps_solid:]
             ax.plot(
                 gt_last[:, 0], 
                 gt_last[:, 1], 
                 'gray', 
                 alpha=0.5, 
                 linewidth=2,
-                label='Ground Truth (Cycle 50)',
+                label=f'Ground Truth (Last {n_cycles_solid} Cycles)',
                 zorder=2
             )
         else:
@@ -232,26 +248,27 @@ def plot_trajectory_evolution(
         n_steps = len(traj)
         
         if steps_per_cycle is not None:
-            # Plot first 49 cycles very lightly
-            traj_early = traj[:-steps_per_cycle]
+            steps_solid = n_cycles_solid * steps_per_cycle
+            # Plot first cycles slightly transparent
+            traj_early = traj[:-steps_solid]
             if len(traj_early) > 0:
                 ax.plot(
                     traj_early[:, 0], 
                     traj_early[:, 1], 
                     color=color,
-                    alpha=0.08,
+                    alpha=0.15,
                     linewidth=1,
                     zorder=3
                 )
             
-            # Plot last cycle solid
-            traj_last = traj[-steps_per_cycle:]
+            # Plot last N cycles solid
+            traj_last = traj[-steps_solid:]
             ax.plot(
                 traj_last[:, 0], 
                 traj_last[:, 1], 
                 color=color,
                 linewidth=2.5,
-                label=f'{model_name} (Cycle 50)',
+                label=f'{model_name} (Last {n_cycles_solid} Cycles)',
                 zorder=4
             )
         else:

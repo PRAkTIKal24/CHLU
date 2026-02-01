@@ -43,10 +43,11 @@ class ExperimentAConfig:
     """Configuration for Experiment A: Stability Test."""
 
     # Cycle-based parameters for geometry learning
-    dt: float = 0.05  # Time step
+    dt: float = 0.02  # Time step
     n_train_cycles: int = 3  # Train on 3 full cycles
     n_test_cycles: int = 50  # Test on 50 full cycles
-    window_size: int = 64  # sub-sequence sampling; ~314 = 1 cycle
+    window_size: int = 64  # Window size for sub-sequence sampling
+    n_final_cycles_to_plot: int = 3  # Number of final cycles to show in plots
     train_epochs: int = 1000
     # Note: chlu_dim is always 2 for Figure-8 (not configurable)
     node_dim: int = 4
