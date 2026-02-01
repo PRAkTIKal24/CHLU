@@ -105,12 +105,10 @@ def train_chlu(
             q0, p0 = q_true[0], p_true[0]
             pred_trajectory = model(q0, p0, steps=len(trajectory), dt=dt)
 
-            # clamp_strength annealing
-            if epoch < epochs_ramp:
-                schedule = epoch / epochs_ramp
-                clamp_strength = clamp_strength * (1 - schedule) + 1.0
-            else:
-                clamp_strength = 1.0
+            # clamp_strength annealing using jnp.where to avoid tracer boolean conversion
+            schedule = epoch / epochs_ramp
+            annealed_clamp = clamp_strength * (1 - schedule) + 1.0
+            clamp_strength = jnp.where(epoch < epochs_ramp, annealed_clamp, 1.0)
             mse = clamp_strength * mse_loss(pred_trajectory, trajectory)
 
             # Lyapunov regularization
