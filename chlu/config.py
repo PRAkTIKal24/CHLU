@@ -31,6 +31,8 @@ class TrainingConfig:
     dt: float = 0.05
     lyapunov_lambda: float = 0.01
     sleep_steps: int = 200
+    clamp_strength: float = 100.0
+    clamp_ramp: float = 0.25
     sleep_friction: float = 0.0
     sleep_frequency: int = 5
     buffer_capacity: int = 1024
