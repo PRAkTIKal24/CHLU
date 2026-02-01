@@ -6,8 +6,8 @@ import jax.numpy as jnp
 
 def generate_figure8(
     key: jax.random.PRNGKey,
-    steps: int,
-    dt: float = 0.01,
+    n_cycles: int,
+    dt: float = 0.02,
     scale: float = 1.0,
 ) -> jnp.ndarray:
     """
@@ -21,16 +21,20 @@ def generate_figure8(
     
     Args:
         key: JAX random key (for potential randomization)
-        steps: Number of time steps
+        n_cycles: Number of complete cycles to generate (period = 2π)
         dt: Time step size
         scale: Scaling factor for the curve
     
     Returns:
-        Trajectory of shape (steps, 4): [x, y, vx, vy] ≡ [q, p]
+        Trajectory of shape (total_steps, 4): [x, y, vx, vy] ≡ [q, p]
+        where total_steps = n_cycles * steps_per_cycle
     """
-    # Time parameter covering one full period
-    # One period of the lemniscate is 2π
-    t = jnp.linspace(0, 2 * jnp.pi, steps)
+    # Compute total number of steps for n_cycles
+    steps_per_cycle = int(2 * jnp.pi / dt)
+    total_steps = n_cycles * steps_per_cycle
+    
+    # Time parameter using actual time-stepping (not linspace)
+    t = jnp.arange(total_steps) * dt
     
     # Position: Lemniscate of Bernoulli
     cos_t = jnp.cos(t)
