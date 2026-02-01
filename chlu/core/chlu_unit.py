@@ -78,6 +78,9 @@ class CHLU(eqx.Module):
         # Relativistic kinetic energy: sqrt(p^T M p + m^2)
         kinetic = jnp.sqrt(jnp.sum(p * M * p) + self.rest_mass**2)
 
+        # Simplified mass matrix (identity), Newtonian kinetic energy
+        # kinetic = 0.5 * jnp.sum(p * p)
+
         # Potential energy
         potential = self.potential_net(q)
 
