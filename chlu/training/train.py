@@ -100,15 +100,17 @@ def train_chlu(
         q_true = trajectory[:, :dim]
         p_true = trajectory[:, dim:]
 
+        # Compute clamp_strength annealing outside loss_fn to avoid recomputation
+        schedule = epoch / epochs_ramp
+        annealed_clamp = clamp_strength * (1 - schedule) + 1.0
+        effective_clamp = jnp.where(epoch < epochs_ramp, annealed_clamp, 1.0)
+
         def loss_fn(model):
             # Run CHLU dynamics from initial state
             q0, p0 = q_true[0], p_true[0]
             pred_trajectory = model(q0, p0, steps=len(trajectory), dt=dt)
 
-            # clamp_strength annealing using jnp.where to avoid tracer boolean conversion
-            schedule = epoch / epochs_ramp
-            annealed_clamp = clamp_strength * (1 - schedule) + 1.0
-            effective_clamp = jnp.where(epoch < epochs_ramp, annealed_clamp, 1.0)
+            # Use precomputed clamp strength
             mse = effective_clamp * mse_loss(pred_trajectory, trajectory)
 
             # Lyapunov regularization
