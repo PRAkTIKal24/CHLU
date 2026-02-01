@@ -30,7 +30,7 @@ class TrainingConfig:
     batch_size: int = 32
     dt: float = 0.05
     lyapunov_lambda: float = 0.01
-    sleep_steps: int = 100
+    sleep_steps: int = 200
     sleep_friction: float = 0.0
     sleep_frequency: int = 5
     buffer_capacity: int = 1024
@@ -41,8 +41,8 @@ class ExperimentAConfig:
     """Configuration for Experiment A: Stability Test."""
 
     train_steps: int = 100
-    test_steps: int = 10000
-    train_epochs: int = 500
+    test_steps: int = 5000
+    train_epochs: int = 1000
     dt: float = 0.05
     # Note: chlu_dim is always 2 for Figure-8 (not configurable)
     node_dim: int = 4
@@ -54,8 +54,8 @@ class ExperimentBConfig:
     """Configuration for Experiment B: Noise Rejection."""
 
     n_waves: int = 100
-    steps: int = 200
-    train_epochs: int = 500
+    steps: int = 1000
+    train_epochs: int = 1000
     sleep_friction: float = 0.01
     friction_ramp: float = 0.2
     dt: float = 0.05
@@ -77,8 +77,8 @@ class ExperimentCConfig:
     dream_steps: int = 100
     friction: float = 0.01
     dt: float = 0.05
-    n_dreams: int = 32
-    hidden_dim: int = 32
+    n_dreams: int = 64
+    hidden_dim: int = 64
     p_train_scale: float = 0.1
     q_noise_scale: float = 2.0
     p_noise_scale: float = 0.5
@@ -96,7 +96,7 @@ class DataConfig:
     sine_freq_max: float = 2.0
     sine_amp_min: float = 0.5
     sine_amp_max: float = 1.5
-    mnist_pca_dim: int = 32
+    mnist_pca_dim: int = 64
     train_test_split: float = 0.8
 
 
