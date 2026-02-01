@@ -96,17 +96,17 @@ def run_experiment_a(
     key = jax.random.PRNGKey(seed)
 
     # 1. Generate Figure-8 data
-    print(f"\n[1/5] Generating Figure-8 trajectory...")
+    print("\n[1/5] Generating Figure-8 trajectory...")
     print(f"  Training: {n_train_cycles} cycles ({train_steps} steps)")
     print(f"  Testing:  {n_test_cycles} cycles ({test_steps} steps)")
     print(f"  Window size: {window_size} steps")
     print(f"  Steps per cycle: {steps_per_cycle}")
-    
+
     k1, k2 = jax.random.split(key)
-    
+
     # Generate training data: 3 complete cycles
     train_data = generate_figure8(k1, n_cycles=n_train_cycles, dt=dt)
-    
+
     # Generate test data: 50 complete cycles
     k2, k3 = jax.random.split(k2)
     test_data = generate_figure8(k3, n_cycles=n_test_cycles, dt=dt)
@@ -163,14 +163,16 @@ def run_experiment_a(
     print(f"    Final loss: {lstm_losses[-1]:.6f}")
 
     # 4. Free run evaluation starting from last training point
-    print(f"\n[4/5] Free run generation ({test_steps} steps from last training point)...")
+    print(
+        f"\n[4/5] Free run generation ({test_steps} steps from last training point)..."
+    )
 
     # Initial conditions from LAST point of training data (for extrapolation)
     q_last, p_last = train_data[-1, :2], train_data[-1, 2:]
     z_last = train_data[-1]  # Full state for NODE/LSTM
 
     print(f"  Initial condition: q={q_last}, p={p_last}")
-    
+
     print("  CHLU: Free run...")
     chlu_traj = chlu(q_last, p_last, steps=test_steps, dt=dt)
 
