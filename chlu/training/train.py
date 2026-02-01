@@ -70,7 +70,7 @@ def train_chlu(
         dt = config.training.dt
 
     sleep_frequency = config.training.sleep_frequency
-    sleep_friction = jnp.array(config.training.sleep_friction)
+    sleep_friction = config.training.sleep_friction
     clamp_strength = jnp.array(config.training.clamp_strength)
     clamp_ramp = config.training.clamp_ramp
 
@@ -135,12 +135,14 @@ def train_chlu(
         q_batch, p_batch, indices = buffer.sample(key, batch_size)
 
         def loss_fn(model):
-            # Evolve states for k steps
+            # Evolve states for k steps using scan to avoid slow compilation
             def evolve_single(q, p):
+                def step_fn(state, _):
+                    return model.step(state, dt, gamma=sleep_friction), None
+                
                 state = (q, p)
-                for _ in range(sleep_steps):
-                    state = model.step(state, dt, gamma=sleep_friction)
-                return state
+                final_state, _ = jax.lax.scan(step_fn, state, None, length=sleep_steps)
+                return final_state
 
             q_evolved, p_evolved = jax.vmap(evolve_single)(q_batch, p_batch)
 
