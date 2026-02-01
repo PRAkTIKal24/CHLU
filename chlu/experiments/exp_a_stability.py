@@ -200,12 +200,19 @@ def run_experiment_a(
 
     # Original three-panel plot comparing against test ground truth
     save_path = os.path.join(save_dir, "exp1_stability.png")
-    plot_three_panel_trajectories(trajectories, test_data, titles, save_path)
+    plot_three_panel_trajectories(
+        trajectories, test_data, titles, save_path, steps_per_cycle=steps_per_cycle
+    )
 
     # Evolution plot with transparent lines
     save_path_evolution = os.path.join(save_dir, "exp1_stability_evolution.png")
     plot_trajectory_evolution(
-        trajectories, test_data, titles, save_path_evolution, n_snapshots=10
+        trajectories,
+        test_data,
+        titles,
+        save_path_evolution,
+        n_snapshots=10,
+        steps_per_cycle=steps_per_cycle,
     )
 
     # Animated GIF
