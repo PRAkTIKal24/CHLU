@@ -23,6 +23,7 @@ def velocity_verlet_step(
         q: Position (dim,)
         p: Momentum (dim,)
         dt: Time step
+        gamma: Friction coefficient (default: 0.0, no friction)
 
     Returns:
         (q_next, p_next): Updated state
