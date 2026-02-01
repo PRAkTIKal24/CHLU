@@ -42,13 +42,31 @@ class TrainingConfig:
 class ExperimentAConfig:
     """Configuration for Experiment A: Stability Test."""
 
-    train_steps: int = 100
-    test_steps: int = 5000
+    # Cycle-based parameters for geometry learning
+    dt: float = 0.05  # Time step
+    n_train_cycles: int = 3  # Train on 3 full cycles
+    n_test_cycles: int = 50  # Test on 50 full cycles
+    window_size: int = 64  # sub-sequence sampling; ~314 = 1 cycle
     train_epochs: int = 1000
-    dt: float = 0.05
     # Note: chlu_dim is always 2 for Figure-8 (not configurable)
     node_dim: int = 4
     hidden_dim: int = 64
+    
+    @property
+    def steps_per_cycle(self) -> int:
+        """Number of steps per cycle (period = 2π)."""
+        import math
+        return int(2 * math.pi / self.dt)
+    
+    @property
+    def train_steps(self) -> int:
+        """Total training steps."""
+        return self.n_train_cycles * self.steps_per_cycle
+    
+    @property
+    def test_steps(self) -> int:
+        """Total test steps."""
+        return self.n_test_cycles * self.steps_per_cycle
 
 
 @dataclass
