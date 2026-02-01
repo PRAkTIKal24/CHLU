@@ -70,7 +70,9 @@ def train_chlu(
         dt = config.training.dt
 
     sleep_frequency = config.training.sleep_frequency
-    sleep_friction = config.training.sleep_friction
+    sleep_friction = jnp.array(config.training.sleep_friction)
+    clamp_strength = jnp.array(config.training.clamp_strength)
+    clamp_ramp = config.training.clamp_ramp
 
     # Handle data shape
     if data.ndim == 2:
@@ -91,7 +93,9 @@ def train_chlu(
     losses = []
 
     @eqx.filter_jit
-    def wake_step(model, opt_state, trajectory, key, epoch, epochs):
+    def wake_step(
+        model, opt_state, trajectory, key, epoch, epochs_ramp, clamp_strength
+    ):
         """Wake phase: supervised learning."""
         q_true = trajectory[:, :dim]
         p_true = trajectory[:, dim:]
@@ -101,12 +105,12 @@ def train_chlu(
             q0, p0 = q_true[0], p_true[0]
             pred_trajectory = model(q0, p0, steps=len(trajectory), dt=dt)
 
-            # MSE loss, weighted by clamp_strength - start high
-            clamp_strength = 100
-
             # clamp_strength annealing
-            schedule = epoch / epochs
-            clamp_strength = clamp_strength * (1 - schedule) + 0.1
+            if epoch < epochs_ramp:
+                schedule = epoch / epochs_ramp
+                clamp_strength = clamp_strength * (1 - schedule) + 1.0
+            else:
+                clamp_strength = 1.0
             mse = clamp_strength * mse_loss(pred_trajectory, trajectory)
 
             # Lyapunov regularization
@@ -162,10 +166,16 @@ def train_chlu(
 
         # Convert epoch values to jax arrays for clamp_strength annealing
         epoch_jax = jnp.array(epoch)
-        epochs_jax = jnp.array(epochs)
+        epochs_ramp_jax = jnp.array(clamp_ramp * epochs)
 
         model, opt_state, wake_loss = wake_step(
-            model, opt_state, trajectory, k3, epoch_jax, epochs_jax
+            model,
+            opt_state,
+            trajectory,
+            k3,
+            epoch_jax,
+            epochs_ramp_jax,
+            clamp_strength,
         )
 
         # Sleep phase (every few epochs to save compute)
