@@ -11,7 +11,7 @@ def save_model(
     model, path: Union[str, Path], metadata: Optional[Dict[str, Any]] = None
 ) -> None:
     """
-    Save a model to disk using Equinox's serialization.
+    Save a model to disk using Equinox's filter + pickle approach.
 
     Args:
         model: Model to save (CHLU, NeuralODE, or LSTMPredictor)
@@ -21,10 +21,17 @@ def save_model(
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    checkpoint = {"model": model, "metadata": metadata or {}}
+    # Separate trainable parameters from static structure
+    params, static = eqx.partition(model, eqx.is_array)
+    
+    checkpoint = {
+        "params": params, 
+        "static": static,
+        "metadata": metadata or {}
+    }
 
     with open(path, "wb") as f:
-        eqx.tree_serialise_leaves(f, checkpoint)
+        pickle.dump(checkpoint, f)
 
 
 def load_model(path: Union[str, Path], model_template: Optional[Any] = None) -> Any:
@@ -33,10 +40,10 @@ def load_model(path: Union[str, Path], model_template: Optional[Any] = None) -> 
 
     Args:
         path: Path to the saved model
-        model_template: Template model with same structure (if None, returns raw data)
+        model_template: Template model (not used with new approach, kept for API compatibility)
 
     Returns:
-        Loaded model (if template provided) or checkpoint dict
+        Loaded model
     """
     path = Path(path)
 
@@ -44,14 +51,11 @@ def load_model(path: Union[str, Path], model_template: Optional[Any] = None) -> 
         raise FileNotFoundError(f"Model file not found: {path}")
 
     with open(path, "rb") as f:
-        if model_template is not None:
-            checkpoint_template = {"model": model_template, "metadata": {}}
-            checkpoint = eqx.tree_deserialise_leaves(f, checkpoint_template)
-            return checkpoint["model"]
-        else:
-            # Load raw data
-            checkpoint = pickle.load(f)
-            return checkpoint
+        checkpoint = pickle.load(f)
+        
+    # Reconstruct model from params and static parts
+    model = eqx.combine(checkpoint["params"], checkpoint["static"])
+    return model
 
 
 def save_checkpoint(
@@ -86,7 +90,7 @@ def load_checkpoint(
 
     Args:
         path: Path to checkpoint
-        model_template: Template model for structure
+        model_template: Template model (not used with new approach, kept for API compatibility)
 
     Returns:
         (model, metadata) tuple
@@ -94,13 +98,12 @@ def load_checkpoint(
     path = Path(path)
 
     with open(path, "rb") as f:
-        if model_template is not None:
-            checkpoint_template = {"model": model_template, "metadata": {}}
-            checkpoint = eqx.tree_deserialise_leaves(f, checkpoint_template)
-            return checkpoint["model"], checkpoint["metadata"]
-        else:
-            checkpoint = pickle.load(f)
-            return checkpoint["model"], checkpoint.get("metadata", {})
+        checkpoint = pickle.load(f)
+    
+    # Reconstruct model from params and static parts
+    model = eqx.combine(checkpoint["params"], checkpoint["static"])
+    
+    return model, checkpoint.get("metadata", {})
 
 
 def list_checkpoints(directory: Union[str, Path], pattern: str = "*.pkl") -> list:
