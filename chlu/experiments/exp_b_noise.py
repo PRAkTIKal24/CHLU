@@ -15,7 +15,7 @@ from chlu.core.chlu_unit import CHLU
 from chlu.data.sine_waves import add_noise, generate_sine_waves
 from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_lstm, train_neural_ode
-from chlu.utils.checkpoints import save_checkpoint
+from chlu.utils.checkpoints import save_checkpoint, load_checkpoint
 from chlu.utils.metrics import compute_mse
 from chlu.utils.plotting import (
     plot_noise_curves,
@@ -28,6 +28,7 @@ def run_experiment_b(
     config: Optional[CHLUConfig] = None,
     save_dir: Optional[str] = None,
     models_dir: Optional[str] = None,
+    use_pretrained: Optional[bool] = None,
     seed: Optional[int] = None,
     n_waves: Optional[int] = None,
     steps: Optional[int] = None,
@@ -58,6 +59,7 @@ def run_experiment_b(
         config: CHLUConfig object (if None, uses defaults)
         save_dir: Directory to save plots (overrides config)
         models_dir: Directory to save trained models (defaults to save_dir/../models)
+        use_pretrained: Load pre-trained models if available (overrides config)
         seed: Random seed (overrides config)
         n_waves: Number of sine waves to generate (overrides config)
         steps: Steps per wave (overrides config)
@@ -89,6 +91,8 @@ def run_experiment_b(
         config.experiment_b.sigma_max = sigma_max
     if n_sigma is not None:
         config.experiment_b.n_sigma = n_sigma
+    if use_pretrained is not None:
+        config.experiment_b.use_pretrained = use_pretrained
 
     # Extract values from config
     save_dir = config.project.save_dir or "results/"
@@ -106,6 +110,7 @@ def run_experiment_b(
     chlu_dim = config.experiment_b.chlu_dim
     node_dim = config.experiment_b.node_dim
     hidden_dim = config.experiment_b.hidden_dim
+    use_pretrained = config.experiment_b.use_pretrained
 
     print("\n" + "=" * 60)
     print("EXPERIMENT B: Energy-Based Noise Rejection")
@@ -128,35 +133,53 @@ def run_experiment_b(
     print(f"  Train data: {train_data.shape}")
     print(f"  Test data: {test_data.shape}")
 
-    # 2. Train all models on clean data
-    print(f"\n[2/4] Training models on clean data ({train_epochs} epochs)...")
-
+    # 2. Initialize models
     k2, k3, k4, k5 = jax.random.split(k2, 4)
-
-    # CHLU (1D sine wave, but we track [x, dx/dt] so dim=1 for position)
-    print("  Training CHLU...")
+    
     chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, key=k3)
-    chlu, _ = train_chlu(chlu, train_data, key=k3, config=config)
-
-    # Neural ODE (2D: [x, dx/dt])
-    print("  Training Neural ODE...")
     node = NeuralODE(dim=node_dim, hidden=hidden_dim, key=k4)
-    node, _ = train_neural_ode(node, train_data, key=k4, config=config)
-
-    # LSTM
-    print("  Training LSTM...")
     lstm = LSTMPredictor(dim=node_dim, hidden_size=hidden_dim, key=k5)
-    lstm, lstm_losses = train_lstm(lstm, train_data, key=k5, config=config)
 
-    # Save trained models
-    print("\n  Saving trained models...")
-    save_checkpoint(chlu, os.path.join(models_dir, "exp_b_chlu.pkl"), 
-                   epoch=train_epochs, loss=0.0, config=config)
-    save_checkpoint(node, os.path.join(models_dir, "exp_b_node.pkl"), 
-                   epoch=train_epochs, loss=0.0, config=config)
-    save_checkpoint(lstm, os.path.join(models_dir, "exp_b_lstm.pkl"), 
-                   epoch=train_epochs, loss=float(lstm_losses[-1]), config=config)
-    print(f"    Saved to {models_dir}")
+    # Train or load models
+    chlu_path = os.path.join(models_dir, "exp_b_chlu.pkl")
+    node_path = os.path.join(models_dir, "exp_b_node.pkl")
+    lstm_path = os.path.join(models_dir, "exp_b_lstm.pkl")
+    
+    models_exist = os.path.exists(chlu_path) and os.path.exists(node_path) and os.path.exists(lstm_path)
+
+    if use_pretrained and models_exist:
+        print(f"\n[2/4] Loading pre-trained models from {models_dir}...")
+        chlu, _ = load_checkpoint(chlu_path, chlu)
+        node, _ = load_checkpoint(node_path, node)
+        lstm, _ = load_checkpoint(lstm_path, lstm)
+        print("  ✓ Models loaded successfully")
+    else:
+        if use_pretrained and not models_exist:
+            print(f"\n[2/4] Pre-trained models not found, training from scratch...")
+        else:
+            print(f"\n[2/4] Training models on clean data ({train_epochs} epochs)...")
+
+        # CHLU (1D sine wave, but we track [x, dx/dt] so dim=1 for position)
+        print("  Training CHLU...")
+        chlu, _ = train_chlu(chlu, train_data, key=k3, config=config)
+
+        # Neural ODE (2D: [x, dx/dt])
+        print("  Training Neural ODE...")
+        node, _ = train_neural_ode(node, train_data, key=k4, config=config)
+
+        # LSTM
+        print("  Training LSTM...")
+        lstm, lstm_losses = train_lstm(lstm, train_data, key=k5, config=config)
+
+        # Save trained models
+        print("\n  Saving trained models...")
+        save_checkpoint(chlu, chlu_path, 
+                       epoch=train_epochs, loss=0.0, config=config)
+        save_checkpoint(node, node_path, 
+                       epoch=train_epochs, loss=0.0, config=config)
+        save_checkpoint(lstm, lstm_path, 
+                       epoch=train_epochs, loss=float(lstm_losses[-1]), config=config)
+        print(f"    Saved to {models_dir}")
 
     # 3. Test across noise levels
     print(f"\n[3/4] Testing noise robustness ({n_sigma} noise levels)...")

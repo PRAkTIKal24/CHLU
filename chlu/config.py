@@ -49,6 +49,7 @@ class ExperimentAConfig:
     window_size: int = 64  # Window size for sub-sequence sampling
     n_final_cycles_to_plot: int = 3  # Number of final cycles to show in plots
     train_epochs: int = 1000
+    use_pretrained: bool = False  # Load pre-trained models if available
     # Note: chlu_dim is always 2 for Figure-8 (not configurable)
     node_dim: int = 4
     hidden_dim: int = 64
@@ -77,6 +78,7 @@ class ExperimentBConfig:
     n_waves: int = 100
     steps: int = 1000
     train_epochs: int = 1000
+    use_pretrained: bool = False  # Load pre-trained models if available
     sleep_friction: float = 0.01
     friction_ramp: float = 0.2
     dt: float = 0.05
@@ -94,6 +96,7 @@ class ExperimentCConfig:
 
     pca_dim: int = 64
     train_epochs: int = 1000
+    use_pretrained: bool = False  # Load pre-trained models if available
     n_samples: int = 5000
     dream_steps: int = 100
     friction: float = 0.01

@@ -14,7 +14,7 @@ from chlu.core.chlu_unit import CHLU
 from chlu.data.figure8 import generate_figure8
 from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_lstm, train_neural_ode
-from chlu.utils.checkpoints import save_checkpoint
+from chlu.utils.checkpoints import save_checkpoint, load_checkpoint
 from chlu.utils.plotting import (
     create_trajectory_animation,
     plot_three_panel_trajectories,
@@ -26,6 +26,7 @@ def run_experiment_a(
     config: Optional[CHLUConfig] = None,
     save_dir: Optional[str] = None,
     models_dir: Optional[str] = None,
+    use_pretrained: Optional[bool] = None,
     seed: Optional[int] = None,
     n_train_cycles: Optional[int] = None,
     n_test_cycles: Optional[int] = None,
@@ -51,6 +52,7 @@ def run_experiment_a(
         config: CHLUConfig object (if None, uses defaults)
         save_dir: Directory to save plots (overrides config)
         models_dir: Directory to save trained models (defaults to save_dir/../models)
+        use_pretrained: Load pre-trained models if available (overrides config)
         seed: Random seed (overrides config)
         n_train_cycles: Number of cycles to train on (overrides config)
         n_test_cycles: Number of cycles to extrapolate (overrides config)
@@ -74,6 +76,8 @@ def run_experiment_a(
         config.experiment_a.train_epochs = train_epochs
     if dt is not None:
         config.experiment_a.dt = dt
+    if use_pretrained is not None:
+        config.experiment_a.use_pretrained = use_pretrained
 
     # Extract values from config
     save_dir = config.project.save_dir or "results/"
@@ -92,6 +96,7 @@ def run_experiment_a(
     chlu_dim = 2
     node_dim = config.experiment_a.node_dim
     hidden_dim = config.experiment_a.hidden_dim
+    use_pretrained = config.experiment_a.use_pretrained
 
     print("\n" + "=" * 60)
     print("EXPERIMENT A: Eternal Memory Stability Test")
@@ -132,51 +137,67 @@ def run_experiment_a(
     print(f"  NeuralODE initialized (dim={node_dim}, hidden={hidden_dim})")
     print(f"  LSTM initialized (dim={node_dim}, hidden={hidden_dim})")
 
-    # 3. Train each model on windowed sub-sequences
-    print(f"\n[3/5] Training models ({train_epochs} epochs, window={window_size})...")
+    # 3. Train or load models
+    chlu_path = os.path.join(models_dir, "exp_a_chlu.pkl")
+    node_path = os.path.join(models_dir, "exp_a_node.pkl")
+    lstm_path = os.path.join(models_dir, "exp_a_lstm.pkl")
+    
+    models_exist = os.path.exists(chlu_path) and os.path.exists(node_path) and os.path.exists(lstm_path)
 
-    print("  Training CHLU...")
-    k6, k7 = jax.random.split(k6)
-    chlu, chlu_losses = train_chlu(
-        chlu,
-        train_data,
-        key=k7,
-        config=config,
-        window_size=window_size,
-    )
-    print(f"    Final loss: {chlu_losses[-1]:.6f}")
+    if use_pretrained and models_exist:
+        print(f"\n[3/5] Loading pre-trained models from {models_dir}...")
+        chlu, _ = load_checkpoint(chlu_path, chlu)
+        node, _ = load_checkpoint(node_path, node)
+        lstm, _ = load_checkpoint(lstm_path, lstm)
+        print("  ✓ Models loaded successfully")
+    else:
+        if use_pretrained and not models_exist:
+            print(f"\n[3/5] Pre-trained models not found, training from scratch...")
+        else:
+            print(f"\n[3/5] Training models ({train_epochs} epochs, window={window_size})...")
 
-    print("  Training Neural ODE...")
-    k7, k8 = jax.random.split(k7)
-    node, node_losses = train_neural_ode(
-        node,
-        train_data,
-        key=k8,
-        config=config,
-        window_size=window_size,
-    )
-    print(f"    Final loss: {node_losses[-1]:.6f}")
+        print("  Training CHLU...")
+        k6, k7 = jax.random.split(k6)
+        chlu, chlu_losses = train_chlu(
+            chlu,
+            train_data,
+            key=k7,
+            config=config,
+            window_size=window_size,
+        )
+        print(f"    Final loss: {chlu_losses[-1]:.6f}")
 
-    print("  Training LSTM...")
-    k8, k9 = jax.random.split(k8)
-    lstm, lstm_losses = train_lstm(
-        lstm,
-        train_data,
-        key=k9,
-        config=config,
-        window_size=window_size,
-    )
-    print(f"    Final loss: {lstm_losses[-1]:.6f}")
+        print("  Training Neural ODE...")
+        k7, k8 = jax.random.split(k7)
+        node, node_losses = train_neural_ode(
+            node,
+            train_data,
+            key=k8,
+            config=config,
+            window_size=window_size,
+        )
+        print(f"    Final loss: {node_losses[-1]:.6f}")
 
-    # Save trained models
-    print("\n  Saving trained models...")
-    save_checkpoint(chlu, os.path.join(models_dir, "exp_a_chlu.pkl"), 
-                   epoch=train_epochs, loss=float(chlu_losses[-1]), config=config)
-    save_checkpoint(node, os.path.join(models_dir, "exp_a_node.pkl"), 
-                   epoch=train_epochs, loss=float(node_losses[-1]), config=config)
-    save_checkpoint(lstm, os.path.join(models_dir, "exp_a_lstm.pkl"), 
-                   epoch=train_epochs, loss=float(lstm_losses[-1]), config=config)
-    print(f"    Saved to {models_dir}")
+        print("  Training LSTM...")
+        k8, k9 = jax.random.split(k8)
+        lstm, lstm_losses = train_lstm(
+            lstm,
+            train_data,
+            key=k9,
+            config=config,
+            window_size=window_size,
+        )
+        print(f"    Final loss: {lstm_losses[-1]:.6f}")
+
+        # Save trained models
+        print("\n  Saving trained models...")
+        save_checkpoint(chlu, chlu_path, 
+                       epoch=train_epochs, loss=float(chlu_losses[-1]), config=config)
+        save_checkpoint(node, node_path, 
+                       epoch=train_epochs, loss=float(node_losses[-1]), config=config)
+        save_checkpoint(lstm, lstm_path, 
+                       epoch=train_epochs, loss=float(lstm_losses[-1]), config=config)
+        print(f"    Saved to {models_dir}")
 
     # 4. Free run evaluation starting from last training point
     print(

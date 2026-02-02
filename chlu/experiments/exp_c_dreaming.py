@@ -14,7 +14,7 @@ from chlu.config import CHLUConfig, get_default_config
 from chlu.core.chlu_unit import CHLU
 from chlu.data.mnist import load_mnist_pca
 from chlu.training.train import train_chlu
-from chlu.utils.checkpoints import save_checkpoint
+from chlu.utils.checkpoints import save_checkpoint, load_checkpoint
 from chlu.utils.plotting import plot_dreaming_grid
 
 
@@ -22,6 +22,7 @@ def run_experiment_c(
     config: Optional[CHLUConfig] = None,
     save_dir: Optional[str] = None,
     models_dir: Optional[str] = None,
+    use_pretrained: Optional[bool] = None,
     seed: Optional[int] = None,
     pca_dim: Optional[int] = None,
     train_epochs: Optional[int] = None,
@@ -48,6 +49,7 @@ def run_experiment_c(
         config: CHLUConfig object (if None, uses defaults)
         save_dir: Directory to save results (overrides config)
         models_dir: Directory to save trained models (defaults to save_dir/models)
+        use_pretrained: Load pre-trained model if available (overrides config)
         seed: Random seed (overrides config)
         pca_dim: PCA dimensionality (overrides config)
         train_epochs: Training epochs (overrides config)
@@ -76,6 +78,8 @@ def run_experiment_c(
         config.experiment_c.friction = friction
     if dt is not None:
         config.experiment_c.dt = dt
+    if use_pretrained is not None:
+        config.experiment_c.use_pretrained = use_pretrained
 
     # Extract values from config
     save_dir = config.project.save_dir or "results/"
@@ -93,6 +97,7 @@ def run_experiment_c(
     q_noise_scale = config.experiment_c.q_noise_scale
     p_noise_scale = config.experiment_c.p_noise_scale
     snapshot_steps = config.experiment_c.snapshot_steps
+    use_pretrained = config.experiment_c.use_pretrained
 
     print("\n" + "=" * 60)
     print("EXPERIMENT C: Generative Dreaming (MNIST)")
@@ -126,25 +131,38 @@ def run_experiment_c(
     # Reshape for training: add time dimension (treat each sample as single timestep)
     train_qp = train_qp[:, None, :]  # (n, 1, 2*pca_dim)
 
-    # 2. Train CHLU with PCD
-    print(f"\n[2/4] Training CHLU ({train_epochs} epochs)...")
+    # 2. Initialize model
     k2, k3 = jax.random.split(k2)
-
     chlu = CHLU(dim=pca_dim, hidden=hidden_dim, key=k3)
-    chlu, losses = train_chlu(
-        chlu,
-        train_qp,
-        key=k3,
-        config=config,
-    )
 
-    print(f"  Final loss: {losses[-1]:.6f}")
+    # Train or load model
+    chlu_path = os.path.join(models_dir, "exp_c_chlu.pkl")
+    model_exists = os.path.exists(chlu_path)
 
-    # Save trained model
-    print("\n  Saving trained model...")
-    save_checkpoint(chlu, os.path.join(models_dir, "exp_c_chlu.pkl"), 
-                   epoch=train_epochs, loss=float(losses[-1]), config=config)
-    print(f"    Saved to {models_dir}")
+    if use_pretrained and model_exists:
+        print(f"\n[2/4] Loading pre-trained model from {models_dir}...")
+        chlu, _ = load_checkpoint(chlu_path, chlu)
+        print("  ✓ Model loaded successfully")
+    else:
+        if use_pretrained and not model_exists:
+            print(f"\n[2/4] Pre-trained model not found, training from scratch...")
+        else:
+            print(f"\n[2/4] Training CHLU ({train_epochs} epochs)...")
+        
+        chlu, losses = train_chlu(
+            chlu,
+            train_qp,
+            key=k3,
+            config=config,
+        )
+
+        print(f"  Final loss: {losses[-1]:.6f}")
+
+        # Save trained model
+        print("\n  Saving trained model...")
+        save_checkpoint(chlu, chlu_path, 
+                       epoch=train_epochs, loss=float(losses[-1]), config=config)
+        print(f"    Saved to {models_dir}")
 
     # 3. Generative Dreaming: Evolving from noise
     print(f"\n[3/4] Dreaming: evolving from noise ({dream_steps} steps)...")
