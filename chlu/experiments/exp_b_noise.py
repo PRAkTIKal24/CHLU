@@ -21,6 +21,7 @@ from chlu.utils.plotting import (
     plot_noise_curves,
     plot_phase_space,
     plot_sine_wave_comparison,
+    plot_multi_noise_grid,
 )
 
 
@@ -196,9 +197,20 @@ def run_experiment_b(
     sigmas = jnp.linspace(sigma_min, sigma_max, n_sigma)
     mse_chlu, mse_node, mse_lstm = [], [], []
 
-    # Store predictions for visualization (at middle noise level)
+    # Store predictions for visualization (at low, middle, and high noise levels)
+    # Choose indices for low (25%), mid (50%), and high (75%) noise levels
+    low_sigma_idx = n_sigma // 4
     mid_sigma_idx = n_sigma // 2
-    mid_sigma = sigmas[mid_sigma_idx]
+    high_sigma_idx = (3 * n_sigma) // 4
+    
+    # Storage for multi-level grid plot
+    multi_level_data = {
+        'sigmas': [],
+        'noisy_inputs': [],
+        'predictions': {'LSTM': [], 'NODE': [], 'CHLU': []}
+    }
+    
+    # Storage for existing single-level plots (middle noise)
     stored_predictions = None
     stored_noisy_data = None
 
@@ -209,11 +221,20 @@ def run_experiment_b(
         k5, k6 = jax.random.split(k5)
         noisy_test = add_noise(test_data, k6, sigma)
 
-        # Store data for visualization at middle noise level
-        should_store = i == mid_sigma_idx
-        if should_store:
+        # Store data for visualization at middle noise level (existing plots)
+        should_store_mid = i == mid_sigma_idx
+        if should_store_mid:
             stored_noisy_data = noisy_test
             stored_predictions = {"LSTM": [], "NODE": [], "CHLU": []}
+        
+        # Store data for multi-level grid plot (low, mid, high)
+        should_store_multi = i in [low_sigma_idx, mid_sigma_idx, high_sigma_idx]
+        if should_store_multi:
+            multi_level_data['sigmas'].append(float(sigma))
+            multi_level_data['noisy_inputs'].append(noisy_test)
+            # Initialize prediction lists for this noise level
+            for model_name in ['LSTM', 'NODE', 'CHLU']:
+                multi_level_data['predictions'][model_name].append([])
 
         # Evaluate each model
         # For CHLU: run dynamics from noisy initial conditions
@@ -254,8 +275,13 @@ def run_experiment_b(
             # Compare against clean data
             errors_chlu.append(compute_mse(pred_traj, clean_seq))
 
-            if should_store:
+            if should_store_mid:
                 stored_predictions["CHLU"].append(pred_traj)
+            
+            if should_store_multi:
+                # Get the index in multi_level lists (0, 1, or 2)
+                multi_idx = [low_sigma_idx, mid_sigma_idx, high_sigma_idx].index(i)
+                multi_level_data['predictions']['CHLU'][multi_idx].append(pred_traj)
 
         # Neural ODE
         errors_node = []
@@ -264,8 +290,12 @@ def run_experiment_b(
             pred_traj = node(z0_noisy, (0.0, steps * dt), dt)
             errors_node.append(compute_mse(pred_traj, test_data[j]))
 
-            if should_store:
+            if should_store_mid:
                 stored_predictions["NODE"].append(pred_traj)
+            
+            if should_store_multi:
+                multi_idx = [low_sigma_idx, mid_sigma_idx, high_sigma_idx].index(i)
+                multi_level_data['predictions']['NODE'][multi_idx].append(pred_traj)
 
         # LSTM
         errors_lstm = []
@@ -274,8 +304,12 @@ def run_experiment_b(
             pred_traj = lstm.generate(x0_noisy, steps=steps)
             errors_lstm.append(compute_mse(pred_traj, test_data[j]))
 
-            if should_store:
+            if should_store_mid:
                 stored_predictions["LSTM"].append(pred_traj)
+            
+            if should_store_multi:
+                multi_idx = [low_sigma_idx, mid_sigma_idx, high_sigma_idx].index(i)
+                multi_level_data['predictions']['LSTM'][multi_idx].append(pred_traj)
 
         mse_chlu.append(jnp.mean(jnp.array(errors_chlu)))
         mse_node.append(jnp.mean(jnp.array(errors_node)))
@@ -289,6 +323,19 @@ def run_experiment_b(
         "NODE": jnp.array(mse_node),
         "CHLU": jnp.array(mse_chlu),
     }
+    
+    # Multi-level noise grid (NEW)
+    if len(multi_level_data['sigmas']) == 3:
+        # Convert prediction lists to arrays
+        for model_name in ['LSTM', 'NODE', 'CHLU']:
+            for idx in range(3):
+                multi_level_data['predictions'][model_name][idx] = jnp.array(
+                    multi_level_data['predictions'][model_name][idx]
+                )
+        
+        save_path_grid = os.path.join(save_dir, "exp2_multi_noise_grid.png")
+        plot_multi_noise_grid(test_data, multi_level_data, save_path_grid, example_idx=0)
+        print(f"  Saved multi-noise grid: {save_path_grid}")
 
     # Noise curve
     save_path = os.path.join(save_dir, "exp2_noise_curve.png")
@@ -312,7 +359,9 @@ def run_experiment_b(
 
         # Phase space plot
         save_path_phase = os.path.join(save_dir, "exp2_phase_space.png")
-        plot_phase_space(
+       len(multi_level_data['sigmas']) == 3:
+        print(f"  - {save_path_grid}")
+    if  plot_phase_space(
             test_data,
             stored_noisy_data,
             stored_predictions,

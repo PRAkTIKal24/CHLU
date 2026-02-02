@@ -524,3 +524,91 @@ def plot_phase_space(
     plt.close()
     
     print(f"Saved phase space plot to {save_path}")
+
+
+def plot_multi_noise_grid(
+    clean_data: jnp.ndarray,
+    noise_levels_data: dict,
+    save_path: str,
+    example_idx: int = 0,
+):
+    """
+    Plot multi-level noise comparison grid.
+    
+    Shows predictions at low, medium, and high noise levels for each model.
+    Layout: 3 rows (LSTM, NODE, CHLU) x 3 columns (low, medium, high noise)
+    
+    Args:
+        clean_data: Clean test data (n_waves, steps, 2)
+        noise_levels_data: Dict with structure:
+            {
+                'sigmas': [low_sigma, mid_sigma, high_sigma],
+                'noisy_inputs': [low_noisy, mid_noisy, high_noisy],
+                'predictions': {
+                    'LSTM': [low_pred, mid_pred, high_pred],
+                    'NODE': [low_pred, mid_pred, high_pred],
+                    'CHLU': [low_pred, mid_pred, high_pred]
+                }
+            }
+        save_path: Path to save figure
+        example_idx: Which test example to show (default: 0)
+    """
+    fig, axes = plt.subplots(3, 3, figsize=(15, 12))
+    
+    model_names = ["LSTM", "NODE", "CHLU"]
+    colors = ['red', 'orange', 'green']
+    sigmas = noise_levels_data['sigmas']
+    noisy_inputs = noise_levels_data['noisy_inputs']
+    predictions = noise_levels_data['predictions']
+    
+    clean_seq = clean_data[example_idx]
+    time_steps = np.arange(len(clean_seq))
+    
+    # Column titles
+    noise_labels = ['Low Noise', 'Medium Noise', 'High Noise']
+    
+    for row, (model_name, color) in enumerate(zip(model_names, colors)):
+        for col, (sigma, noisy_data, noise_label) in enumerate(zip(sigmas, noisy_inputs, noise_labels)):
+            ax = axes[row, col]
+            
+            noisy_seq = noisy_data[example_idx]
+            pred_seq = predictions[model_name][col][example_idx]
+            
+            # Plot clean signal (ground truth)
+            ax.plot(time_steps, clean_seq[:, 0], 'k-', linewidth=2.5, 
+                   label='Clean Signal', alpha=0.7, zorder=3)
+            
+            # Plot noisy input (scatter to show noise)
+            ax.scatter(time_steps[::3], noisy_seq[::3, 0], c='gray', s=12, 
+                      alpha=0.4, label=f'Noisy Input', zorder=1)
+            
+            # Plot model prediction
+            ax.plot(time_steps, pred_seq[:, 0], color=color, linewidth=2, 
+                   label=f'{model_name} Prediction', linestyle='--', zorder=2)
+            
+            # Styling
+            ax.set_xlabel('Time Step', fontsize=10)
+            ax.set_ylabel('Amplitude', fontsize=10)
+            ax.grid(True, alpha=0.3)
+            
+            # Title at top of each column
+            if row == 0:
+                ax.set_title(f'{noise_label}\n(σ = {sigma:.2f})', fontsize=11, fontweight='bold')
+            
+            # Y-axis label on left side
+            if col == 0:
+                ax.text(-0.25, 0.5, model_name, transform=ax.transAxes, 
+                       fontsize=12, fontweight='bold', rotation=90, 
+                       va='center', ha='center')
+            
+            # Legend only on first subplot
+            if row == 0 and col == 0:
+                ax.legend(fontsize=8, loc='upper right')
+    
+    plt.suptitle('Multi-Level Noise Comparison: Model Predictions Across Noise Levels', 
+                fontsize=14, fontweight='bold', y=0.995)
+    plt.tight_layout(rect=[0, 0, 1, 0.99])
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Saved multi-noise grid to {save_path}")
