@@ -151,7 +151,7 @@ def run_experiment_c(
         else:
             print(f"\n[2/4] Training CHLU ({train_epochs} epochs)...")
 
-        chlu, losses = train_chlu(
+        chlu, losses, _ = train_chlu(
             chlu,
             train_qp,
             key=k3,

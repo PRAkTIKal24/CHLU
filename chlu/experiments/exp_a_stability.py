@@ -166,7 +166,7 @@ def run_experiment_a(
 
         print("  Training CHLU...")
         k6, k7 = jax.random.split(k6)
-        chlu, chlu_losses = train_chlu(
+        chlu, chlu_losses, _ = train_chlu(
             chlu,
             train_data,
             key=k7,
