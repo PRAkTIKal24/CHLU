@@ -227,4 +227,17 @@ def train_chlu(
 
         losses.append(float(wake_loss))
 
-    return model, jnp.array(losses)
+    # Compute target energy from training data for governor
+    # This represents the "normal" energy level learned from clean data
+    def compute_energy(traj):
+        """Compute mean Hamiltonian over a single trajectory."""
+        q = traj[:, :dim]
+        p = traj[:, dim:]
+        energies = jax.vmap(model.H)(q, p)
+        return jnp.mean(energies)
+    
+    # Average energy across all trajectories
+    all_energies = jax.vmap(compute_energy)(data)
+    target_energy = float(jnp.mean(all_energies))
+
+    return model, jnp.array(losses), target_energy
