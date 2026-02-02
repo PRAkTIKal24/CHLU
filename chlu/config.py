@@ -50,7 +50,7 @@ class ExperimentAConfig:
     n_final_cycles_to_plot: int = 2  # Number of final cycles to show in plots
     train_epochs: int = 1000
     use_pretrained: bool = False  # Load pre-trained models if available
-    kinetic_energy_mode: str = "newtonian_identity"  # KE calculation mode
+    kinetic_energy_mode: str = "newtonian_identity"  # KE calculation mode: newtonian_identity, newtonian_learned, relativistic
     # Note: chlu_dim is always 2 for Figure-8 (not configurable)
     node_dim: int = 4
     hidden_dim: int = 64
