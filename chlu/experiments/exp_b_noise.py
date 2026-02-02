@@ -22,6 +22,7 @@ from chlu.utils.plotting import (
     plot_phase_space,
     plot_sine_wave_comparison,
     plot_multi_noise_grid,
+    plot_noise_heatmap,
 )
 
 
@@ -195,6 +196,13 @@ def run_experiment_b(
     print(f"\n[3/4] Testing noise robustness ({n_sigma} noise levels)...")
 
     sigmas = jnp.linspace(sigma_min, sigma_max, n_sigma)
+    
+    # Store temporal errors for heatmap (per-timestep errors)
+    temporal_errors = {
+        'LSTM': [],
+        'NODE': [],
+        'CHLU': []
+    }
     mse_chlu, mse_node, mse_lstm = [], [], []
 
     # Store predictions for visualization (at low, middle, and high noise levels)
@@ -240,6 +248,7 @@ def run_experiment_b(
         # Evaluate each model
         # For CHLU: run dynamics from noisy initial conditions
         errors_chlu = []
+        temporal_errors_chlu = []  # Per-timestep errors for this noise level
         for j in range(len(noisy_test)):
             # Extract clean and noisy initial conditions
             clean_seq = test_data[j]
@@ -275,6 +284,10 @@ def run_experiment_b(
 
             # Compare against clean data
             errors_chlu.append(compute_mse(pred_traj, clean_seq))
+            
+            # Compute per-timestep squared errors
+            timestep_errors = jnp.mean((pred_traj - clean_seq) ** 2, axis=1)
+            temporal_errors_chlu.append(timestep_errors)
 
             if should_store_mid:
                 stored_predictions["CHLU"].append(pred_traj)
@@ -286,10 +299,15 @@ def run_experiment_b(
 
         # Neural ODE
         errors_node = []
+        temporal_errors_node = []
         for j in range(len(noisy_test)):
             z0_noisy = noisy_test[j, 0]
             pred_traj = node(z0_noisy, (0.0, steps * dt), dt)
             errors_node.append(compute_mse(pred_traj, test_data[j]))
+            
+            # Compute per-timestep squared errors
+            timestep_errors = jnp.mean((pred_traj - test_data[j]) ** 2, axis=1)
+            temporal_errors_node.append(timestep_errors)
 
             if should_store_mid:
                 stored_predictions["NODE"].append(pred_traj)
@@ -300,10 +318,15 @@ def run_experiment_b(
 
         # LSTM
         errors_lstm = []
+        temporal_errors_lstm = []
         for j in range(len(noisy_test)):
             x0_noisy = noisy_test[j, 0]
             pred_traj = lstm.generate(x0_noisy, steps=steps)
             errors_lstm.append(compute_mse(pred_traj, test_data[j]))
+            
+            # Compute per-timestep squared errors
+            timestep_errors = jnp.mean((pred_traj - test_data[j]) ** 2, axis=1)
+            temporal_errors_lstm.append(timestep_errors)
 
             if should_store_mid:
                 stored_predictions["LSTM"].append(pred_traj)
@@ -315,6 +338,11 @@ def run_experiment_b(
         mse_chlu.append(jnp.mean(jnp.array(errors_chlu)))
         mse_node.append(jnp.mean(jnp.array(errors_node)))
         mse_lstm.append(jnp.mean(jnp.array(errors_lstm)))
+        
+        # Store mean temporal errors across all test samples for this noise level
+        temporal_errors['CHLU'].append(jnp.mean(jnp.array(temporal_errors_chlu), axis=0))
+        temporal_errors['NODE'].append(jnp.mean(jnp.array(temporal_errors_node), axis=0))
+        temporal_errors['LSTM'].append(jnp.mean(jnp.array(temporal_errors_lstm), axis=0))
 
     # 4. Plot results
     print("\n[4/4] Creating visualizations...")
@@ -341,6 +369,14 @@ def run_experiment_b(
     # Noise curve
     save_path = os.path.join(save_dir, "exp2_noise_curve.png")
     plot_noise_curves(sigmas, mse_dict, save_path)
+    
+    # Noise heatmap
+    # Convert temporal errors to arrays
+    for model_name in ['LSTM', 'NODE', 'CHLU']:
+        temporal_errors[model_name] = jnp.array(temporal_errors[model_name])
+    
+    save_path_heatmap = os.path.join(save_dir, "exp2_noise_heatmap.png")
+    plot_noise_heatmap(sigmas, temporal_errors, save_path_heatmap)
 
     # Sine wave comparison (using stored predictions from middle noise level)
     if stored_predictions is not None:
@@ -373,8 +409,13 @@ def run_experiment_b(
     print("EXPERIMENT B COMPLETE!")
     print("Results saved to:")
     print(f"  - {save_path}")
+    print(f"  - {save_path_heatmap}")
     if len(multi_level_data['sigmas']) == 3:
         print(f"  - {save_path_grid}")
+    if stored_predictions is not None:
+        print(f"  - {save_path_waves}")
+        print(f"  - {save_path_phase}")
+    print("=" * 60 + "\n")
     if stored_predictions is not None:
         print(f"  - {save_path_waves}")
         print(f"  - {save_path_phase}")

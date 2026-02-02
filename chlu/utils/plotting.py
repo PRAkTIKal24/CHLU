@@ -612,3 +612,63 @@ def plot_multi_noise_grid(
     plt.close()
     
     print(f"Saved multi-noise grid to {save_path}")
+
+
+def plot_noise_heatmap(
+    sigmas: jnp.ndarray,
+    temporal_errors: dict,
+    save_path: str,
+):
+    """
+    Plot noise level heatmap showing error evolution over time.
+    
+    Creates a 2D heatmap for each model showing how reconstruction error
+    varies across noise levels (y-axis) and time steps (x-axis).
+    
+    Args:
+        sigmas: Array of noise levels (n_sigma,)
+        temporal_errors: Dict with structure:
+            {
+                'LSTM': array of shape (n_sigma, n_steps),
+                'NODE': array of shape (n_sigma, n_steps),
+                'CHLU': array of shape (n_sigma, n_steps)
+            }
+            Each entry [i, t] contains the mean squared error at noise level i and timestep t
+        save_path: Path to save figure
+    """
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    
+    model_names = ["LSTM", "NODE", "CHLU"]
+    cmaps = ['Reds', 'Oranges', 'Greens']
+    
+    for ax, model_name, cmap in zip(axes, model_names, cmaps):
+        error_matrix = np.array(temporal_errors[model_name])
+        n_sigma, n_steps = error_matrix.shape
+        
+        # Create heatmap
+        im = ax.imshow(
+            error_matrix,
+            aspect='auto',
+            origin='lower',
+            cmap=cmap,
+            extent=[0, n_steps, float(sigmas[0]), float(sigmas[-1])],
+            interpolation='bilinear'
+        )
+        
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label('Mean Squared Error', fontsize=10)
+        
+        # Styling
+        ax.set_xlabel('Time Step', fontsize=11)
+        ax.set_ylabel('Noise Level (σ)', fontsize=11)
+        ax.set_title(f'{model_name} Error Heatmap', fontsize=12, fontweight='bold')
+        ax.grid(False)
+    
+    plt.suptitle('Temporal Error Evolution Across Noise Levels', 
+                fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Saved noise heatmap to {save_path}")
