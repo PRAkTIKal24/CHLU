@@ -28,12 +28,14 @@ class CHLU(eqx.Module):
     log_mass: jnp.ndarray  # Log-parameterized for positivity
     rest_mass: float = eqx.field(static=True)
     dim: int = eqx.field(static=True)
+    kinetic_mode: str = eqx.field(static=True)  # "newtonian_identity", "newtonian_learned", "relativistic"
 
     def __init__(
         self,
         dim: int,
         hidden: int = 32,
         rest_mass: float = 1.0,
+        kinetic_mode: str = "newtonian_identity",
         key: jax.random.PRNGKey = None,
     ):
         """
@@ -43,6 +45,8 @@ class CHLU(eqx.Module):
             dim: Dimensionality of position/momentum space
             hidden: Hidden units in potential network (default: 32)
             rest_mass: Rest mass constant m (default: 1.0)
+            kinetic_mode: Kinetic energy calculation mode (default: "newtonian_identity")
+                         Options: "newtonian_identity", "newtonian_learned", "relativistic"
             key: JAX random key
         """
         if key is None:
@@ -52,6 +56,7 @@ class CHLU(eqx.Module):
 
         self.dim = dim
         self.rest_mass = rest_mass
+        self.kinetic_mode = kinetic_mode
 
         # Initialize potential network
         self.potential_net = PotentialMLP(dim, hidden, key=k1)
@@ -61,9 +66,14 @@ class CHLU(eqx.Module):
 
     def H(self, q: jnp.ndarray, p: jnp.ndarray) -> float:
         """
-        Compute the relativistic Hamiltonian.
+        Compute the Hamiltonian with selectable kinetic energy mode.
 
-        H(q, p) = sqrt(p^T M p + m^2) + V(q)
+        H(q, p) = T(p) + V(q)
+
+        Where T(p) depends on kinetic_mode:
+        - "newtonian_identity": T = 0.5 * p^2 (identity mass, classic)
+        - "newtonian_learned": T = 0.5 * p^T M^-1 p (learned mass, classic)
+        - "relativistic": T = sqrt(p^T M^-1 p + m^2) (learned mass, relativistic)
 
         Args:
             q: Position (dim,)
@@ -72,16 +82,32 @@ class CHLU(eqx.Module):
         Returns:
             Total energy (scalar)
         """
-        # Ensure mass matrix is positive-definite
-        # M = jax.nn.softplus(self.log_mass)
+        # Compute mass vector (always prepared, used if needed)
+        M = jax.nn.softplus(self.log_mass)  # Ensure positive-definite
+        M_inv = 1.0 / (M + 1e-6)  # Inverse mass with numerical stability
 
-        # Relativistic kinetic energy: sqrt(p^T M p + m^2)
-        # kinetic = jnp.sqrt(jnp.sum(p * M * p) + self.rest_mass**2)
+        # Select kinetic energy calculation based on mode
+        if self.kinetic_mode == "newtonian_identity":
+            # Classic T = 0.5 * p^2 (identity mass)
+            # Best for: Lemniscate/Figure-8 to preserve geometric properties
+            kinetic = 0.5 * jnp.sum(p * p)
+            
+        elif self.kinetic_mode == "newtonian_learned":
+            # T = 0.5 * p^T M^-1 p (learned diagonal mass)
+            # Best for: Systems with varying inertia across dimensions
+            kinetic = 0.5 * jnp.sum((p * p) * M_inv)
+            
+        elif self.kinetic_mode == "relativistic":
+            # T = sqrt(p^T M^-1 p + m^2) (relativistic with learned mass)
+            # Best for: High-dimensional systems, bounded velocities, noise robustness
+            p_norm_squared = jnp.sum((p * p) * M_inv)
+            kinetic = jnp.sqrt(p_norm_squared + self.rest_mass**2)
+            
+        else:
+            raise ValueError(f"Unknown kinetic mode: {self.kinetic_mode}. "
+                           f"Must be 'newtonian_identity', 'newtonian_learned', or 'relativistic'.")
 
-        # Simplified mass matrix (identity), Newtonian kinetic energy
-        kinetic = 0.5 * jnp.sum(p * p)
-
-        # Potential energy
+        # Potential energy (always computed the same way)
         potential = self.potential_net(q)
 
         return kinetic + potential
