@@ -202,6 +202,7 @@ def run_experiment_b(
     low_sigma_idx = n_sigma // 4
     mid_sigma_idx = n_sigma // 2
     high_sigma_idx = (3 * n_sigma) // 4
+    mid_sigma = sigmas[mid_sigma_idx]
     
     # Storage for multi-level grid plot
     multi_level_data = {
@@ -359,9 +360,7 @@ def run_experiment_b(
 
         # Phase space plot
         save_path_phase = os.path.join(save_dir, "exp2_phase_space.png")
-       len(multi_level_data['sigmas']) == 3:
-        print(f"  - {save_path_grid}")
-    if  plot_phase_space(
+        plot_phase_space(
             test_data,
             stored_noisy_data,
             stored_predictions,
@@ -374,6 +373,8 @@ def run_experiment_b(
     print("EXPERIMENT B COMPLETE!")
     print("Results saved to:")
     print(f"  - {save_path}")
+    if len(multi_level_data['sigmas']) == 3:
+        print(f"  - {save_path_grid}")
     if stored_predictions is not None:
         print(f"  - {save_path_waves}")
         print(f"  - {save_path_phase}")
