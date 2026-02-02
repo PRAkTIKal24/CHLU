@@ -222,8 +222,11 @@ class CHLU(eqx.Module):
             output = jnp.concatenate([q_next, p_next])
             return (q_next, p_next), output
 
-        # Run scan
-        _, trajectory = jax.lax.scan(scan_fn, (q0, p0), None, length=steps)
-
-        return trajectory
+        # Run scan for steps-1, then prepend initial condition
+        # This ensures output length = steps and includes (q0, p0) as first point
+        _, trajectory = jax.lax.scan(scan_fn, (q0, p0), None, length=steps - 1)
+        
+        # Prepend initial condition to match LSTM/NODE behavior
+        initial_state = jnp.concatenate([q0, p0])[None, :]
+        return jnp.concatenate([initial_state, trajectory], axis=0)
 
