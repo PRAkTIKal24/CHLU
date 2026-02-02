@@ -9,46 +9,47 @@ def generate_sine_waves(
     n_waves: int,
     steps: int,
     dt: float = 0.01,
-    freq_range: tuple = (0.5, 2.0),
-    amp_range: tuple = (0.5, 1.5),
+    freq: float = 1.0,
+    amp: float = 1.0,
 ) -> jnp.ndarray:
     """
-    Generate clean sine wave trajectories with random frequencies and amplitudes.
+    Generate clean sine wave trajectories with random phases.
+    
+    All waves have the SAME frequency and amplitude, only phase differs.
+    This ensures a single point (q, p) uniquely determines the trajectory,
+    making single-timestep inference physically valid.
     
     Each wave is represented as [x, dx/dt] where:
-        x(t) = A * sin(2π * f * t)
-        dx/dt = A * 2π * f * cos(2π * f * t)
+        x(t) = A * sin(2π * f * t + φ)
+        dx/dt = A * 2π * f * cos(2π * f * t + φ)
     
     Args:
         key: JAX random key
         n_waves: Number of sine waves to generate
         steps: Number of time steps per wave
         dt: Time step size
-        freq_range: (min_freq, max_freq) in Hz
-        amp_range: (min_amp, max_amp)
+        freq: Frequency in Hz (fixed for all waves)
+        amp: Amplitude (fixed for all waves)
     
     Returns:
         Sine waves of shape (n_waves, steps, 2): [x, dx/dt]
     """
-    k1, k2 = jax.random.split(key, 2)
-    
-    # Random frequencies and amplitudes for each wave
-    freqs = jax.random.uniform(k1, (n_waves,), minval=freq_range[0], maxval=freq_range[1])
-    amps = jax.random.uniform(k2, (n_waves,), minval=amp_range[0], maxval=amp_range[1])
+    # Random phases for each wave
+    phases = jax.random.uniform(key, (n_waves,), minval=0.0, maxval=2.0 * jnp.pi)
     
     # Time array
     t = jnp.arange(steps) * dt  # (steps,)
     
     # Generate waves
-    def generate_single_wave(freq, amp):
-        """Generate single sine wave."""
+    def generate_single_wave(phase):
+        """Generate single sine wave with given phase."""
         omega = 2 * jnp.pi * freq
-        x = amp * jnp.sin(omega * t)
-        dx_dt = amp * omega * jnp.cos(omega * t)
+        x = amp * jnp.sin(omega * t + phase)
+        dx_dt = amp * omega * jnp.cos(omega * t + phase)
         return jnp.stack([x, dx_dt], axis=-1)  # (steps, 2)
     
     # Vectorize over all waves
-    waves = jax.vmap(generate_single_wave)(freqs, amps)  # (n_waves, steps, 2)
+    waves = jax.vmap(generate_single_wave)(phases)  # (n_waves, steps, 2)
     
     return waves
 
