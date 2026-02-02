@@ -205,7 +205,7 @@ class LSTMPredictor(eqx.Module):
             steps: Number of steps to generate
         
         Returns:
-            Generated trajectory (steps, dim)
+            Generated trajectory (steps, dim) including x0 as first step
         """
         def scan_fn(carry, _):
             h, c, x = carry
@@ -220,6 +220,8 @@ class LSTMPredictor(eqx.Module):
             x0
         )
         
-        _, trajectory = jax.lax.scan(scan_fn, init_state, None, length=steps)
+        # Generate steps-1 predictions, then prepend x0
+        _, trajectory = jax.lax.scan(scan_fn, init_state, None, length=steps - 1)
         
-        return trajectory
+        # Prepend initial condition to match CHLU/NODE behavior
+        return jnp.concatenate([x0[None, :], trajectory], axis=0)
