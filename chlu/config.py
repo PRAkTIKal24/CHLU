@@ -19,6 +19,7 @@ class ModelConfig:
     hidden_dim: int = 64
     rest_mass: float = 1.0
     log_mass_init_scale: float = 0.1
+    kinetic_energy_mode: str = "newtonian_identity"  # Options: "newtonian_identity", "newtonian_learned", "relativistic"
 
 
 @dataclass
@@ -50,6 +51,7 @@ class ExperimentAConfig:
     n_final_cycles_to_plot: int = 3  # Number of final cycles to show in plots
     train_epochs: int = 1000
     use_pretrained: bool = False  # Load pre-trained models if available
+    kinetic_energy_mode: str = "newtonian_identity"  # KE calculation mode
     # Note: chlu_dim is always 2 for Figure-8 (not configurable)
     node_dim: int = 4
     hidden_dim: int = 64
@@ -79,6 +81,7 @@ class ExperimentBConfig:
     steps: int = 1000
     train_epochs: int = 1000
     use_pretrained: bool = False  # Load pre-trained models if available
+    kinetic_energy_mode: str = "newtonian_learned"  # KE calculation mode
     sleep_friction: float = 0.01
     friction_ramp: float = 0.2
     dt: float = 0.05
@@ -97,6 +100,7 @@ class ExperimentCConfig:
     pca_dim: int = 64
     train_epochs: int = 1000
     use_pretrained: bool = False  # Load pre-trained models if available
+    kinetic_energy_mode: str = "relativistic"  # KE calculation mode
     n_samples: int = 5000
     dream_steps: int = 100
     friction: float = 0.01
