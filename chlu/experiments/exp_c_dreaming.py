@@ -135,7 +135,7 @@ def run_experiment_c(
     # 2. Initialize model
     k2, k3 = jax.random.split(k2)
     print(f"  CHLU kinetic mode: {kinetic_mode}")
-    chlu = CHLU(dim=pca_dim, hidden=hidden_dim, kinetic_mode=kinetic_mode, key=k3)
+    chlu = CHLU(dim=pca_dim, hidden=hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, kinetic_mode=kinetic_mode, key=k3)
 
     # Train or load model
     chlu_path = os.path.join(models_dir, "exp_c_chlu.pkl")

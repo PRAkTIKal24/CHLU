@@ -140,7 +140,7 @@ def run_experiment_b(
     print(f"  CHLU kinetic mode: {kinetic_mode}")
     k2, k3, k4, k5 = jax.random.split(k2, 4)
 
-    chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, kinetic_mode=kinetic_mode, key=k3)
+    chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, kinetic_mode=kinetic_mode, key=k3)
     node = NeuralODE(dim=node_dim, hidden=hidden_dim, key=k4)
     lstm = LSTMPredictor(dim=node_dim, hidden_size=hidden_dim, key=k5)
 

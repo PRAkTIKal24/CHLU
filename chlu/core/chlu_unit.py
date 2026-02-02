@@ -27,6 +27,7 @@ class CHLU(eqx.Module):
     potential_net: PotentialMLP
     log_mass: jnp.ndarray  # Log-parameterized for positivity
     rest_mass: float = eqx.field(static=True)
+    c: float = eqx.field(static=True)  # Speed of causality
     dim: int = eqx.field(static=True)
     kinetic_mode: str = eqx.field(
         static=True
@@ -37,6 +38,7 @@ class CHLU(eqx.Module):
         dim: int,
         hidden: int = 32,
         rest_mass: float = 1.0,
+        c: float = 1.0,
         kinetic_mode: str = "newtonian_identity",
         key: jax.random.PRNGKey = None,
     ):
@@ -47,6 +49,7 @@ class CHLU(eqx.Module):
             dim: Dimensionality of position/momentum space
             hidden: Hidden units in potential network (default: 32)
             rest_mass: Rest mass constant m (default: 1.0)
+            c: Speed of causality (default: 1.0)
             kinetic_mode: Kinetic energy calculation mode (default: "newtonian_identity")
                          Options: "newtonian_identity", "newtonian_learned", "relativistic"
             key: JAX random key
@@ -58,6 +61,7 @@ class CHLU(eqx.Module):
 
         self.dim = dim
         self.rest_mass = rest_mass
+        self.c = c
         self.kinetic_mode = kinetic_mode
 
         # Initialize potential network

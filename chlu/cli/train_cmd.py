@@ -137,7 +137,7 @@ def cmd_train_chlu(args):
         console.print(f"  Training data shape: {train_data.shape}")
         
         # Initialize model
-        chlu = CHLU(dim=dim, hidden=config.model.hidden_dim, key=k2)
+        chlu = CHLU(dim=dim, hidden=config.model.hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, key=k2)
         
         # Train model
         console.print("  Training...")
