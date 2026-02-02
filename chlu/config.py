@@ -19,7 +19,6 @@ class ModelConfig:
     hidden_dim: int = 64
     rest_mass: float = 1.0
     log_mass_init_scale: float = 0.1
-    kinetic_energy_mode: str = "newtonian_identity"  # Options: "newtonian_identity", "newtonian_learned", "relativistic"
 
 
 @dataclass
