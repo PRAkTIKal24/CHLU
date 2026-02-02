@@ -145,9 +145,11 @@ def plot_dreaming_grid(
     Plot grid of evolving images for generative dreaming.
     
     Used for Experiment C: MNIST dreaming visualization.
+    Automatically unnormalizes images from [-1, 1] to [0, 255] for display.
     
     Args:
         images: Array of images (n_images, height * width) or (n_images, height, width)
+                Expected to be in [-1, 1] range (will be unnormalized for display)
         save_path: Path to save figure
         n_rows: Number of rows in grid
         n_cols: Number of columns in grid
@@ -157,13 +159,18 @@ def plot_dreaming_grid(
     if images.ndim == 2:
         images = images.reshape(-1, *image_shape)
     
+    # Unnormalize from [-1, 1] to [0, 255]
+    images = np.array(images)
+    images = (images + 1.0) * 127.5
+    images = np.clip(images, 0, 255).astype(np.uint8)
+    
     n_images = min(len(images), n_rows * n_cols)
     
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 1.5, n_rows * 1.5))
     axes = axes.flatten()
     
     for i in range(n_images):
-        axes[i].imshow(np.array(images[i]), cmap='gray')
+        axes[i].imshow(images[i], cmap='gray', vmin=0, vmax=255)
         axes[i].axis('off')
     
     # Hide unused subplots
