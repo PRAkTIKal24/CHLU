@@ -111,6 +111,7 @@ def run_experiment_b(
     node_dim = config.experiment_b.node_dim
     hidden_dim = config.experiment_b.hidden_dim
     use_pretrained = config.experiment_b.use_pretrained
+    kinetic_mode = config.experiment_b.kinetic_energy_mode
 
     print("\n" + "=" * 60)
     print("EXPERIMENT B: Energy-Based Noise Rejection")
@@ -134,9 +135,10 @@ def run_experiment_b(
     print(f"  Test data: {test_data.shape}")
 
     # 2. Initialize models
+    print(f"  CHLU kinetic mode: {kinetic_mode}")
     k2, k3, k4, k5 = jax.random.split(k2, 4)
 
-    chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, key=k3)
+    chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, kinetic_mode=kinetic_mode, key=k3)
     node = NeuralODE(dim=node_dim, hidden=hidden_dim, key=k4)
     lstm = LSTMPredictor(dim=node_dim, hidden_size=hidden_dim, key=k5)
 

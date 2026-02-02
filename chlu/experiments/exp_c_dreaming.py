@@ -98,6 +98,7 @@ def run_experiment_c(
     p_noise_scale = config.experiment_c.p_noise_scale
     snapshot_steps = config.experiment_c.snapshot_steps
     use_pretrained = config.experiment_c.use_pretrained
+    kinetic_mode = config.experiment_c.kinetic_energy_mode
 
     print("\n" + "=" * 60)
     print("EXPERIMENT C: Generative Dreaming (MNIST)")
@@ -133,7 +134,8 @@ def run_experiment_c(
 
     # 2. Initialize model
     k2, k3 = jax.random.split(k2)
-    chlu = CHLU(dim=pca_dim, hidden=hidden_dim, key=k3)
+    print(f"  CHLU kinetic mode: {kinetic_mode}")
+    chlu = CHLU(dim=pca_dim, hidden=hidden_dim, kinetic_mode=kinetic_mode, key=k3)
 
     # Train or load model
     chlu_path = os.path.join(models_dir, "exp_c_chlu.pkl")

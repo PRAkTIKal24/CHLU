@@ -97,6 +97,7 @@ def run_experiment_a(
     node_dim = config.experiment_a.node_dim
     hidden_dim = config.experiment_a.hidden_dim
     use_pretrained = config.experiment_a.use_pretrained
+    kinetic_mode = config.experiment_a.kinetic_energy_mode
 
     print("\n" + "=" * 60)
     print("EXPERIMENT A: Eternal Memory Stability Test")
@@ -127,9 +128,10 @@ def run_experiment_a(
 
     # 2. Initialize models
     print("\n[2/5] Initializing models (CHLU, NODE, LSTM)...")
+    print(f"  CHLU kinetic mode: {kinetic_mode}")
     k3, k4, k5, k6 = jax.random.split(k3, 4)
 
-    chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, key=k4)
+    chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, kinetic_mode=kinetic_mode, key=k4)
     node = NeuralODE(dim=node_dim, hidden=hidden_dim, key=k5)  # 4D: (x, y, vx, vy)
     lstm = LSTMPredictor(dim=node_dim, hidden_size=hidden_dim, key=k6)
 
