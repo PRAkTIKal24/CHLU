@@ -105,7 +105,7 @@ def cmd_exp_a(args):
     config.project.save_dir = str(paths['plots'])
     
     try:
-        run_experiment_a(config=config)
+        run_experiment_a(config=config, models_dir=str(paths['models']))
         console.print("✓ Experiment A completed", style="bold green")
     except Exception as e:
         console.print(f"✗ Error: {e}", style="bold red")
@@ -126,7 +126,7 @@ def cmd_exp_b(args):
     config.project.save_dir = str(paths['plots'])
     
     try:
-        run_experiment_b(config=config)
+        run_experiment_b(config=config, models_dir=str(paths['models']))
         console.print("✓ Experiment B completed", style="bold green")
     except Exception as e:
         console.print(f"✗ Error: {e}", style="bold red")
@@ -147,7 +147,7 @@ def cmd_exp_c(args):
     config.project.save_dir = str(paths['plots'])
     
     try:
-        run_experiment_c(config=config)
+        run_experiment_c(config=config, models_dir=str(paths['models']))
         console.print("✓ Experiment C completed", style="bold green")
     except Exception as e:
         console.print(f"✗ Error: {e}", style="bold red")
