@@ -114,6 +114,8 @@ def run_experiment_b(
     hidden_dim = config.experiment_b.hidden_dim
     use_pretrained = config.experiment_b.use_pretrained
     kinetic_mode = config.experiment_b.kinetic_energy_mode
+    use_governor = config.experiment_b.use_governor
+    governor_sensitivity = config.experiment_b.governor_sensitivity
 
     print("\n" + "=" * 60)
     print("EXPERIMENT B: Energy-Based Noise Rejection")
@@ -157,10 +159,13 @@ def run_experiment_b(
 
     if use_pretrained and models_exist:
         print(f"\n[2/4] Loading pre-trained models from {models_dir}...")
-        chlu, _ = load_checkpoint(chlu_path, chlu)
+        chlu, chlu_metadata = load_checkpoint(chlu_path, chlu)
+        target_energy = chlu_metadata.get("target_energy")
         node, _ = load_checkpoint(node_path, node)
         lstm, _ = load_checkpoint(lstm_path, lstm)
         print("  ✓ Models loaded successfully")
+        if target_energy is not None:
+            print(f"  ✓ Target energy: {target_energy:.4f}")
     else:
         if use_pretrained and not models_exist:
             print("\n[2/4] Pre-trained models not found, training from scratch...")
@@ -169,7 +174,8 @@ def run_experiment_b(
 
         # CHLU (1D sine wave, but we track [x, dx/dt] so dim=1 for position)
         print("  Training CHLU...")
-        chlu, _ = train_chlu(chlu, train_data, key=k3, config=config)
+        chlu, _, target_energy = train_chlu(chlu, train_data, key=k3, config=config)
+        print(f"    Computed target energy: {target_energy:.4f}")
 
         # Neural ODE (2D: [x, dx/dt])
         print("  Training Neural ODE...")
@@ -181,7 +187,7 @@ def run_experiment_b(
 
         # Save trained models
         print("\n  Saving trained models...")
-        save_checkpoint(chlu, chlu_path, epoch=train_epochs, loss=0.0, config=config)
+        save_checkpoint(chlu, chlu_path, epoch=train_epochs, loss=0.0, config=config, target_energy=target_energy)
         save_checkpoint(node, node_path, epoch=train_epochs, loss=0.0, config=config)
         save_checkpoint(
             lstm,
@@ -194,6 +200,10 @@ def run_experiment_b(
 
     # 3. Test across noise levels
     print(f"\n[3/4] Testing noise robustness ({n_sigma} noise levels)...")
+    if use_governor and target_energy is not None:
+        print(f"  Using Active Governor (target_energy={target_energy:.4f}, sensitivity={governor_sensitivity})")
+    else:
+        print(f"  Using Fixed Friction Annealing (friction={sleep_friction}, ramp={friction_ramp})")
 
     sigmas = jnp.linspace(sigma_min, sigma_max, n_sigma)
     
@@ -258,29 +268,40 @@ def run_experiment_b(
             q0_noisy = noisy_seq[0, 0:1]  # x (1D)
             p0_noisy = noisy_seq[0, 1:2]  # dx/dt (1D)
 
-            # Friction Annealing
-            ramp_steps = int(steps * friction_ramp)
-            coasting_steps = steps - ramp_steps
+            # Choose inference strategy
+            if use_governor and target_energy is not None:
+                # Active Governor: Dynamic energy-based friction control
+                pred_traj = chlu.governed_rollout(
+                    q0_noisy,
+                    p0_noisy,
+                    steps=steps,
+                    dt=dt,
+                    target_energy=target_energy,
+                    sensitivity=governor_sensitivity,
+                )
+            else:
+                # Legacy: Fixed friction annealing (ramp + coast)
+                ramp_steps = int(steps * friction_ramp)
+                coasting_steps = steps - ramp_steps
 
-            # Run CHLU dynamics
-            # 1. Friction ramp-up phase
-            pred_traj_ramp = chlu(
-                q0_noisy,
-                p0_noisy,
-                steps=ramp_steps,
-                dt=dt,
-                gamma=sleep_friction,
-            )
+                # 1. Friction ramp-up phase
+                pred_traj_ramp = chlu(
+                    q0_noisy,
+                    p0_noisy,
+                    steps=ramp_steps,
+                    dt=dt,
+                    gamma=sleep_friction,
+                )
 
-            q_ramped = pred_traj_ramp[-1, 0:1]
-            p_ramped = pred_traj_ramp[-1, 1:2]
+                q_ramped = pred_traj_ramp[-1, 0:1]
+                p_ramped = pred_traj_ramp[-1, 1:2]
 
-            # 2. Coasting phase (gamma=0)
-            pred_traj_coast = chlu(
-                q_ramped, p_ramped, steps=coasting_steps, dt=dt, gamma=0.0
-            )
+                # 2. Coasting phase (gamma=0)
+                pred_traj_coast = chlu(
+                    q_ramped, p_ramped, steps=coasting_steps, dt=dt, gamma=0.0
+                )
 
-            pred_traj = jnp.concatenate([pred_traj_ramp, pred_traj_coast], axis=0)
+                pred_traj = jnp.concatenate([pred_traj_ramp, pred_traj_coast], axis=0)
 
             # Compare against clean data
             errors_chlu.append(compute_mse(pred_traj, clean_seq))
