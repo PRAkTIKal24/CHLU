@@ -30,9 +30,9 @@ class TrainingConfig:
     batch_size: int = 32
     dt: float = 0.05
     lyapunov_lambda: float = 0.01
-    sleep_steps: int = 200
-    clamp_strength: float = 100.0
-    clamp_ramp: float = 0.25
+    sleep_steps: int = 500
+    clamp_strength: float = 1000.0
+    clamp_ramp: float = 0.5
     sleep_friction: float = 0.0
     sleep_frequency: int = 5
     buffer_capacity: int = 1024
@@ -43,29 +43,30 @@ class ExperimentAConfig:
     """Configuration for Experiment A: Stability Test."""
 
     # Cycle-based parameters for geometry learning
-    dt: float = 0.02  # Time step
+    dt: float = 0.05  # Time step
     n_train_cycles: int = 3  # Train on 3 full cycles
     n_test_cycles: int = 50  # Test on 50 full cycles
     window_size: int = 64  # Window size for sub-sequence sampling
-    n_final_cycles_to_plot: int = 3  # Number of final cycles to show in plots
+    n_final_cycles_to_plot: int = 2  # Number of final cycles to show in plots
     train_epochs: int = 1000
     use_pretrained: bool = False  # Load pre-trained models if available
     kinetic_energy_mode: str = "newtonian_identity"  # KE calculation mode
     # Note: chlu_dim is always 2 for Figure-8 (not configurable)
     node_dim: int = 4
     hidden_dim: int = 64
-    
+
     @property
     def steps_per_cycle(self) -> int:
         """Number of steps per cycle (period = 2π)."""
         import math
+
         return int(2 * math.pi / self.dt)
-    
+
     @property
     def train_steps(self) -> int:
         """Total training steps."""
         return self.n_train_cycles * self.steps_per_cycle
-    
+
     @property
     def test_steps(self) -> int:
         """Total test steps."""
