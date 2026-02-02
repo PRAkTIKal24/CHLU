@@ -589,6 +589,7 @@ def plot_multi_noise_grid(
             # Styling
             ax.set_xlabel('Time Step', fontsize=10)
             ax.set_ylabel('Amplitude', fontsize=10)
+            ax.set_ylim(-3, 3)  # Fixed y-axis range for easy comparison
             ax.grid(True, alpha=0.3)
             
             # Title at top of each column
