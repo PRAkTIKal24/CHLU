@@ -8,6 +8,7 @@ from typing import Optional
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from chlu.config import CHLUConfig, get_default_config
 from chlu.core.chlu_unit import CHLU
@@ -101,7 +102,10 @@ def run_experiment_c(
     train_data, test_data, pca = load_mnist_pca(dim=pca_dim, n_samples=n_samples)
 
     print(f"  Train data: {train_data.shape}")
-    print(f"  PCA explained variance: {pca.explained_variance_ratio_.sum():.2%}")
+    if pca is not None:
+        print(f"  PCA explained variance: {pca.explained_variance_ratio_.sum():.2%}")
+    else:
+        print(f"  PCA: Disabled (using raw {pca_dim}-dim pixel data)")
 
     # Convert to CHLU format: we'll treat PCA features as position q
     # and initialize momentum p to zero (or small random values)
@@ -185,8 +189,11 @@ def run_experiment_c(
     print("\n[4/4] Creating visualization...")
 
     def decode_and_plot(states, filename, title):
-        # Inverse PCA
-        images = pca.inverse_transform(states)
+        # Inverse PCA (or direct reshape if PCA was skipped)
+        if pca is not None:
+            images = pca.inverse_transform(states)
+        else:
+            images = np.array(states)  # Already in pixel space
         images = images.reshape(-1, 28, 28)
 
         # Save
