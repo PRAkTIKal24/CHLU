@@ -170,3 +170,60 @@ class CHLU(eqx.Module):
         _, trajectory = jax.lax.scan(scan_fn, (q0, p0), None, length=steps)
 
         return trajectory
+
+    def governed_rollout(
+        self,
+        q0: jnp.ndarray,
+        p0: jnp.ndarray,
+        steps: int,
+        dt: float,
+        target_energy: float,
+        sensitivity: float = 1.0,
+    ) -> jnp.ndarray:
+        """
+        Unroll trajectory with energy-based governor (active limit cycle control).
+        
+        The governor dynamically adjusts friction based on energy error:
+        - If current_energy > target_energy (noisy): Apply positive friction (brake)
+        - If current_energy < target_energy (damped): Apply negative friction (inject energy)
+        
+        This creates a Van der Pol-like limit cycle attractor at the target energy.
+
+        Args:
+            q0: Initial position (dim,)
+            p0: Initial momentum (dim,)
+            steps: Number of time steps
+            dt: Time step size
+            target_energy: Target Hamiltonian energy (learned from training data)
+            sensitivity: Governor sensitivity (default: 1.0). Controls correction speed.
+
+        Returns:
+            Trajectory of shape (steps, 2*dim) where each row is [q, p]
+        """
+
+        def scan_fn(state, _):
+            q, p = state
+            
+            # Compute current energy
+            current_energy = self.H(q, p)
+            
+            # Energy error: positive if above target (noise), negative if below (damped)
+            energy_error = current_energy - target_energy
+            
+            # Symmetric control: tanh clamps to [-1, 1] for stability
+            # Positive error → positive gamma (friction/brake)
+            # Negative error → negative gamma (anti-friction/accelerate)
+            gamma = sensitivity * jnp.tanh(energy_error)
+            
+            # Step with dynamic gamma
+            q_next, p_next = self.step((q, p), dt, gamma)
+            
+            # Concatenate q and p for output
+            output = jnp.concatenate([q_next, p_next])
+            return (q_next, p_next), output
+
+        # Run scan
+        _, trajectory = jax.lax.scan(scan_fn, (q0, p0), None, length=steps)
+
+        return trajectory
+
