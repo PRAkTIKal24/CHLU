@@ -28,7 +28,9 @@ class CHLU(eqx.Module):
     log_mass: jnp.ndarray  # Log-parameterized for positivity
     rest_mass: float = eqx.field(static=True)
     dim: int = eqx.field(static=True)
-    kinetic_mode: str = eqx.field(static=True)  # "newtonian_identity", "newtonian_learned", "relativistic"
+    kinetic_mode: str = eqx.field(
+        static=True
+    )  # "newtonian_identity", "newtonian_learned", "relativistic"
 
     def __init__(
         self,
@@ -91,21 +93,27 @@ class CHLU(eqx.Module):
             # Classic T = 0.5 * p^2 (identity mass)
             # Best for: Lemniscate/Figure-8 to preserve geometric properties
             kinetic = 0.5 * jnp.sum(p * p)
-            
+
         elif self.kinetic_mode == "newtonian_learned":
             # T = 0.5 * p^T M^-1 p (learned diagonal mass)
             # Best for: Systems with varying inertia across dimensions
             kinetic = 0.5 * jnp.sum((p * p) * M_inv)
-            
+
         elif self.kinetic_mode == "relativistic":
-            # T = sqrt(p^T M^-1 p + m^2) (relativistic with learned mass)
+            # T = c(sqrt(p^T M^-1 p + (mc)^2)) (relativistic with learned mass)
             # Best for: High-dimensional systems, bounded velocities, noise robustness
             p_norm_squared = jnp.sum((p * p) * M_inv)
-            kinetic = jnp.sqrt(p_norm_squared + self.rest_mass**2)
-            
+
+            # Compute rest energy term
+            rest_energy = (self.rest_mass * self.c) ** 2
+
+            kinetic = jnp.sqrt(p_norm_squared + rest_energy)
+
         else:
-            raise ValueError(f"Unknown kinetic mode: {self.kinetic_mode}. "
-                           f"Must be 'newtonian_identity', 'newtonian_learned', or 'relativistic'.")
+            raise ValueError(
+                f"Unknown kinetic mode: {self.kinetic_mode}. "
+                f"Must be 'newtonian_identity', 'newtonian_learned', or 'relativistic'."
+            )
 
         # Potential energy (always computed the same way)
         potential = self.potential_net(q)
