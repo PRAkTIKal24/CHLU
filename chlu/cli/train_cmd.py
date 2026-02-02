@@ -141,7 +141,7 @@ def cmd_train_chlu(args):
         
         # Train model
         console.print("  Training...")
-        trained_model, losses = train_chlu_fn(
+        trained_model, losses, target_energy = train_chlu_fn(
             chlu,
             train_data,
             key=k2,
@@ -149,6 +149,7 @@ def cmd_train_chlu(args):
         )
         
         console.print(f"  Final loss: {losses[-1]:.6f}")
+        console.print(f"  Target energy: {target_energy:.6f}")
         
         # Save model
         model_name = create_checkpoint_name(
@@ -164,7 +165,8 @@ def cmd_train_chlu(args):
             epoch=config.training.epochs,
             loss=losses[-1],
             config=config,
-            dataset=args.data
+            dataset=args.data,
+            target_energy=target_energy
         )
         
         console.print(f"[green]✓ Model saved to {model_path}[/green]")
