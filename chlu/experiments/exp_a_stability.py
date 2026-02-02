@@ -14,6 +14,7 @@ from chlu.core.chlu_unit import CHLU
 from chlu.data.figure8 import generate_figure8
 from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_lstm, train_neural_ode
+from chlu.utils.checkpoints import save_checkpoint
 from chlu.utils.plotting import (
     create_trajectory_animation,
     plot_three_panel_trajectories,
@@ -24,6 +25,7 @@ from chlu.utils.plotting import (
 def run_experiment_a(
     config: Optional[CHLUConfig] = None,
     save_dir: Optional[str] = None,
+    models_dir: Optional[str] = None,
     seed: Optional[int] = None,
     n_train_cycles: Optional[int] = None,
     n_test_cycles: Optional[int] = None,
@@ -47,7 +49,8 @@ def run_experiment_a(
 
     Args:
         config: CHLUConfig object (if None, uses defaults)
-        save_dir: Directory to save results (overrides config)
+        save_dir: Directory to save plots (overrides config)
+        models_dir: Directory to save trained models (defaults to save_dir/../models)
         seed: Random seed (overrides config)
         n_train_cycles: Number of cycles to train on (overrides config)
         n_test_cycles: Number of cycles to extrapolate (overrides config)
@@ -74,6 +77,7 @@ def run_experiment_a(
 
     # Extract values from config
     save_dir = config.project.save_dir or "results/"
+    models_dir = models_dir or os.path.join(save_dir, "../models")
     seed = config.project.seed
     n_train_cycles = config.experiment_a.n_train_cycles
     n_test_cycles = config.experiment_a.n_test_cycles
@@ -94,6 +98,7 @@ def run_experiment_a(
     print("=" * 60)
 
     os.makedirs(save_dir, exist_ok=True)
+    os.makedirs(models_dir, exist_ok=True)
     key = jax.random.PRNGKey(seed)
 
     # 1. Generate Figure-8 data
@@ -162,6 +167,16 @@ def run_experiment_a(
         window_size=window_size,
     )
     print(f"    Final loss: {lstm_losses[-1]:.6f}")
+
+    # Save trained models
+    print("\n  Saving trained models...")
+    save_checkpoint(chlu, os.path.join(models_dir, "exp_a_chlu.pkl"), 
+                   epoch=train_epochs, loss=float(chlu_losses[-1]), config=config)
+    save_checkpoint(node, os.path.join(models_dir, "exp_a_node.pkl"), 
+                   epoch=train_epochs, loss=float(node_losses[-1]), config=config)
+    save_checkpoint(lstm, os.path.join(models_dir, "exp_a_lstm.pkl"), 
+                   epoch=train_epochs, loss=float(lstm_losses[-1]), config=config)
+    print(f"    Saved to {models_dir}")
 
     # 4. Free run evaluation starting from last training point
     print(

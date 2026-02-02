@@ -15,6 +15,7 @@ from chlu.core.chlu_unit import CHLU
 from chlu.data.sine_waves import add_noise, generate_sine_waves
 from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_lstm, train_neural_ode
+from chlu.utils.checkpoints import save_checkpoint
 from chlu.utils.metrics import compute_mse
 from chlu.utils.plotting import (
     plot_noise_curves,
@@ -26,6 +27,7 @@ from chlu.utils.plotting import (
 def run_experiment_b(
     config: Optional[CHLUConfig] = None,
     save_dir: Optional[str] = None,
+    models_dir: Optional[str] = None,
     seed: Optional[int] = None,
     n_waves: Optional[int] = None,
     steps: Optional[int] = None,
@@ -54,7 +56,8 @@ def run_experiment_b(
 
     Args:
         config: CHLUConfig object (if None, uses defaults)
-        save_dir: Directory to save results (overrides config)
+        save_dir: Directory to save plots (overrides config)
+        models_dir: Directory to save trained models (defaults to save_dir/../models)
         seed: Random seed (overrides config)
         n_waves: Number of sine waves to generate (overrides config)
         steps: Steps per wave (overrides config)
@@ -89,6 +92,7 @@ def run_experiment_b(
 
     # Extract values from config
     save_dir = config.project.save_dir or "results/"
+    models_dir = models_dir or os.path.join(save_dir, "../models")
     seed = config.project.seed
     n_waves = config.experiment_b.n_waves
     steps = config.experiment_b.steps
@@ -108,6 +112,7 @@ def run_experiment_b(
     print("=" * 60)
 
     os.makedirs(save_dir, exist_ok=True)
+    os.makedirs(models_dir, exist_ok=True)
     key = jax.random.PRNGKey(seed)
 
     # 1. Generate clean sine waves
@@ -141,7 +146,17 @@ def run_experiment_b(
     # LSTM
     print("  Training LSTM...")
     lstm = LSTMPredictor(dim=node_dim, hidden_size=hidden_dim, key=k5)
-    lstm, _ = train_lstm(lstm, train_data, key=k5, config=config)
+    lstm, lstm_losses = train_lstm(lstm, train_data, key=k5, config=config)
+
+    # Save trained models
+    print("\n  Saving trained models...")
+    save_checkpoint(chlu, os.path.join(models_dir, "exp_b_chlu.pkl"), 
+                   epoch=train_epochs, loss=0.0, config=config)
+    save_checkpoint(node, os.path.join(models_dir, "exp_b_node.pkl"), 
+                   epoch=train_epochs, loss=0.0, config=config)
+    save_checkpoint(lstm, os.path.join(models_dir, "exp_b_lstm.pkl"), 
+                   epoch=train_epochs, loss=float(lstm_losses[-1]), config=config)
+    print(f"    Saved to {models_dir}")
 
     # 3. Test across noise levels
     print(f"\n[3/4] Testing noise robustness ({n_sigma} noise levels)...")

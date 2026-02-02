@@ -14,12 +14,14 @@ from chlu.config import CHLUConfig, get_default_config
 from chlu.core.chlu_unit import CHLU
 from chlu.data.mnist import load_mnist_pca
 from chlu.training.train import train_chlu
+from chlu.utils.checkpoints import save_checkpoint
 from chlu.utils.plotting import plot_dreaming_grid
 
 
 def run_experiment_c(
     config: Optional[CHLUConfig] = None,
     save_dir: Optional[str] = None,
+    models_dir: Optional[str] = None,
     seed: Optional[int] = None,
     pca_dim: Optional[int] = None,
     train_epochs: Optional[int] = None,
@@ -45,6 +47,7 @@ def run_experiment_c(
     Args:
         config: CHLUConfig object (if None, uses defaults)
         save_dir: Directory to save results (overrides config)
+        models_dir: Directory to save trained models (defaults to save_dir/models)
         seed: Random seed (overrides config)
         pca_dim: PCA dimensionality (overrides config)
         train_epochs: Training epochs (overrides config)
@@ -76,6 +79,7 @@ def run_experiment_c(
 
     # Extract values from config
     save_dir = config.project.save_dir or "results/"
+    models_dir = models_dir or os.path.join(save_dir, "../models")
     seed = config.project.seed
     pca_dim = config.experiment_c.pca_dim
     train_epochs = config.experiment_c.train_epochs
@@ -95,6 +99,7 @@ def run_experiment_c(
     print("=" * 60)
 
     os.makedirs(save_dir, exist_ok=True)
+    os.makedirs(models_dir, exist_ok=True)
     key = jax.random.PRNGKey(seed)
 
     # 1. Load MNIST with PCA
@@ -134,6 +139,12 @@ def run_experiment_c(
     )
 
     print(f"  Final loss: {losses[-1]:.6f}")
+
+    # Save trained model
+    print("\n  Saving trained model...")
+    save_checkpoint(chlu, os.path.join(models_dir, "exp_c_chlu.pkl"), 
+                   epoch=train_epochs, loss=float(losses[-1]), config=config)
+    print(f"    Saved to {models_dir}")
 
     # 3. Generative Dreaming: Evolving from noise
     print(f"\n[3/4] Dreaming: evolving from noise ({dream_steps} steps)...")
