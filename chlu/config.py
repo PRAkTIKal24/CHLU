@@ -85,6 +85,8 @@ class ExperimentBConfig:
     kinetic_energy_mode: str = "newtonian_learned"  # KE calculation mode
     sleep_friction: float = 0.01
     friction_ramp: float = 0.2
+    use_governor: bool = True  # Use energy-based governor for dynamic friction
+    governor_sensitivity: float = 1.0  # Controls correction speed for governor
     dt: float = 0.05
     sigma_min: float = 0.1
     sigma_max: float = 1.0
