@@ -14,7 +14,7 @@ from chlu.config import CHLUConfig, get_default_config
 from chlu.core.chlu_unit import CHLU
 from chlu.data.mnist import load_mnist_pca
 from chlu.training.train import train_chlu
-from chlu.utils.checkpoints import save_checkpoint, load_checkpoint
+from chlu.utils.checkpoints import load_checkpoint, save_checkpoint
 from chlu.utils.plotting import plot_dreaming_grid
 
 
@@ -145,10 +145,10 @@ def run_experiment_c(
         print("  ✓ Model loaded successfully")
     else:
         if use_pretrained and not model_exists:
-            print(f"\n[2/4] Pre-trained model not found, training from scratch...")
+            print("\n[2/4] Pre-trained model not found, training from scratch...")
         else:
             print(f"\n[2/4] Training CHLU ({train_epochs} epochs)...")
-        
+
         chlu, losses = train_chlu(
             chlu,
             train_qp,
@@ -160,8 +160,9 @@ def run_experiment_c(
 
         # Save trained model
         print("\n  Saving trained model...")
-        save_checkpoint(chlu, chlu_path, 
-                       epoch=train_epochs, loss=float(losses[-1]), config=config)
+        save_checkpoint(
+            chlu, chlu_path, epoch=train_epochs, loss=float(losses[-1]), config=config
+        )
         print(f"    Saved to {models_dir}")
 
     # 3. Generative Dreaming: Evolving from noise

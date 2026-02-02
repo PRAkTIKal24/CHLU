@@ -15,7 +15,7 @@ from chlu.core.chlu_unit import CHLU
 from chlu.data.sine_waves import add_noise, generate_sine_waves
 from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_lstm, train_neural_ode
-from chlu.utils.checkpoints import save_checkpoint, load_checkpoint
+from chlu.utils.checkpoints import load_checkpoint, save_checkpoint
 from chlu.utils.metrics import compute_mse
 from chlu.utils.plotting import (
     plot_noise_curves,
@@ -135,7 +135,7 @@ def run_experiment_b(
 
     # 2. Initialize models
     k2, k3, k4, k5 = jax.random.split(k2, 4)
-    
+
     chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, key=k3)
     node = NeuralODE(dim=node_dim, hidden=hidden_dim, key=k4)
     lstm = LSTMPredictor(dim=node_dim, hidden_size=hidden_dim, key=k5)
@@ -144,8 +144,12 @@ def run_experiment_b(
     chlu_path = os.path.join(models_dir, "exp_b_chlu.pkl")
     node_path = os.path.join(models_dir, "exp_b_node.pkl")
     lstm_path = os.path.join(models_dir, "exp_b_lstm.pkl")
-    
-    models_exist = os.path.exists(chlu_path) and os.path.exists(node_path) and os.path.exists(lstm_path)
+
+    models_exist = (
+        os.path.exists(chlu_path)
+        and os.path.exists(node_path)
+        and os.path.exists(lstm_path)
+    )
 
     if use_pretrained and models_exist:
         print(f"\n[2/4] Loading pre-trained models from {models_dir}...")
@@ -155,7 +159,7 @@ def run_experiment_b(
         print("  ✓ Models loaded successfully")
     else:
         if use_pretrained and not models_exist:
-            print(f"\n[2/4] Pre-trained models not found, training from scratch...")
+            print("\n[2/4] Pre-trained models not found, training from scratch...")
         else:
             print(f"\n[2/4] Training models on clean data ({train_epochs} epochs)...")
 
@@ -173,12 +177,15 @@ def run_experiment_b(
 
         # Save trained models
         print("\n  Saving trained models...")
-        save_checkpoint(chlu, chlu_path, 
-                       epoch=train_epochs, loss=0.0, config=config)
-        save_checkpoint(node, node_path, 
-                       epoch=train_epochs, loss=0.0, config=config)
-        save_checkpoint(lstm, lstm_path, 
-                       epoch=train_epochs, loss=float(lstm_losses[-1]), config=config)
+        save_checkpoint(chlu, chlu_path, epoch=train_epochs, loss=0.0, config=config)
+        save_checkpoint(node, node_path, epoch=train_epochs, loss=0.0, config=config)
+        save_checkpoint(
+            lstm,
+            lstm_path,
+            epoch=train_epochs,
+            loss=float(lstm_losses[-1]),
+            config=config,
+        )
         print(f"    Saved to {models_dir}")
 
     # 3. Test across noise levels

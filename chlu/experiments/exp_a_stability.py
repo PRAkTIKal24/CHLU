@@ -14,7 +14,7 @@ from chlu.core.chlu_unit import CHLU
 from chlu.data.figure8 import generate_figure8
 from chlu.training.train import train_chlu
 from chlu.training.train_baselines import train_lstm, train_neural_ode
-from chlu.utils.checkpoints import save_checkpoint, load_checkpoint
+from chlu.utils.checkpoints import load_checkpoint, save_checkpoint
 from chlu.utils.plotting import (
     create_trajectory_animation,
     plot_three_panel_trajectories,
@@ -141,8 +141,12 @@ def run_experiment_a(
     chlu_path = os.path.join(models_dir, "exp_a_chlu.pkl")
     node_path = os.path.join(models_dir, "exp_a_node.pkl")
     lstm_path = os.path.join(models_dir, "exp_a_lstm.pkl")
-    
-    models_exist = os.path.exists(chlu_path) and os.path.exists(node_path) and os.path.exists(lstm_path)
+
+    models_exist = (
+        os.path.exists(chlu_path)
+        and os.path.exists(node_path)
+        and os.path.exists(lstm_path)
+    )
 
     if use_pretrained and models_exist:
         print(f"\n[3/5] Loading pre-trained models from {models_dir}...")
@@ -152,9 +156,11 @@ def run_experiment_a(
         print("  ✓ Models loaded successfully")
     else:
         if use_pretrained and not models_exist:
-            print(f"\n[3/5] Pre-trained models not found, training from scratch...")
+            print("\n[3/5] Pre-trained models not found, training from scratch...")
         else:
-            print(f"\n[3/5] Training models ({train_epochs} epochs, window={window_size})...")
+            print(
+                f"\n[3/5] Training models ({train_epochs} epochs, window={window_size})..."
+            )
 
         print("  Training CHLU...")
         k6, k7 = jax.random.split(k6)
@@ -191,12 +197,27 @@ def run_experiment_a(
 
         # Save trained models
         print("\n  Saving trained models...")
-        save_checkpoint(chlu, chlu_path, 
-                       epoch=train_epochs, loss=float(chlu_losses[-1]), config=config)
-        save_checkpoint(node, node_path, 
-                       epoch=train_epochs, loss=float(node_losses[-1]), config=config)
-        save_checkpoint(lstm, lstm_path, 
-                       epoch=train_epochs, loss=float(lstm_losses[-1]), config=config)
+        save_checkpoint(
+            chlu,
+            chlu_path,
+            epoch=train_epochs,
+            loss=float(chlu_losses[-1]),
+            config=config,
+        )
+        save_checkpoint(
+            node,
+            node_path,
+            epoch=train_epochs,
+            loss=float(node_losses[-1]),
+            config=config,
+        )
+        save_checkpoint(
+            lstm,
+            lstm_path,
+            epoch=train_epochs,
+            loss=float(lstm_losses[-1]),
+            config=config,
+        )
         print(f"    Saved to {models_dir}")
 
     # 4. Free run evaluation starting from last training point
