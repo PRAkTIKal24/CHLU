@@ -38,15 +38,14 @@ def plot_three_panel_trajectories(
         gt_plot = ground_truth
     
     # Plot ground truth on all panels (in gray)
+    gt_label = f'Ground Truth (Last {n_cycles_to_show} Cycles)' if steps_per_cycle else 'Ground Truth'
     for ax in axes:
-        label = f'Ground Truth (Last {n_cycles_to_show} Cycles)' if steps_per_cycle else 'Ground Truth'
         ax.plot(
             gt_plot[:, 0], 
             gt_plot[:, 1], 
             'gray', 
             alpha=0.3, 
-            linewidth=2,
-            label=label
+            linewidth=2
         )
         ax.set_xlabel('x')
         ax.set_ylabel('y')
@@ -58,39 +57,41 @@ def plot_three_panel_trajectories(
     if steps_per_cycle is not None:
         steps_to_show = n_cycles_to_show * steps_per_cycle
         lstm_plot = lstm_traj[-steps_to_show:]
-        label = f'LSTM (Last {n_cycles_to_show} Cycles)'
     else:
         lstm_plot = lstm_traj
-        label = 'LSTM'
-    axes[0].plot(lstm_plot[:, 0], lstm_plot[:, 1], 'r-', linewidth=1.5, label=label)
+    axes[0].plot(lstm_plot[:, 0], lstm_plot[:, 1], 'r-', linewidth=1.5)
     axes[0].set_title(titles[0])
-    axes[0].legend()
     
     # Plot NODE (middle panel) - last N cycles
     node_traj = trajectories["NODE"]
     if steps_per_cycle is not None:
         steps_to_show = n_cycles_to_show * steps_per_cycle
         node_plot = node_traj[-steps_to_show:]
-        label = f'NODE (Last {n_cycles_to_show} Cycles)'
     else:
         node_plot = node_traj
-        label = 'NODE'
-    axes[1].plot(node_plot[:, 0], node_plot[:, 1], 'orange', linewidth=1.5, label=label)
+    axes[1].plot(node_plot[:, 0], node_plot[:, 1], 'orange', linewidth=1.5)
     axes[1].set_title(titles[1])
-    axes[1].legend()
     
     # Plot CHLU (right panel) - last N cycles
     chlu_traj = trajectories["CHLU"]
     if steps_per_cycle is not None:
         steps_to_show = n_cycles_to_show * steps_per_cycle
         chlu_plot = chlu_traj[-steps_to_show:]
-        label = f'CHLU (Last {n_cycles_to_show} Cycles)'
     else:
         chlu_plot = chlu_traj
-        label = 'CHLU'
-    axes[2].plot(chlu_plot[:, 0], chlu_plot[:, 1], 'g-', linewidth=1.5, label=label)
+    axes[2].plot(chlu_plot[:, 0], chlu_plot[:, 1], 'g-', linewidth=1.5)
     axes[2].set_title(titles[2])
-    axes[2].legend()
+    
+    # Create unified legend outside the plot area
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], color='gray', linewidth=2, alpha=0.3, label=gt_label),
+        Line2D([0], [0], color='r', linewidth=1.5, label='LSTM'),
+        Line2D([0], [0], color='orange', linewidth=1.5, label='NODE'),
+        Line2D([0], [0], color='g', linewidth=1.5, label='CHLU')
+    ]
+    fig.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, -0.02), 
+              ncol=4, frameon=True, fontsize=10)
     
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
@@ -124,7 +125,7 @@ def plot_noise_curves(
     plt.xlabel('Noise Sigma (σ)', fontsize=12)
     plt.ylabel('Reconstruction MSE', fontsize=12)
     plt.title('Noise Robustness: The Filter Effect', fontsize=14, fontweight='bold')
-    plt.legend(fontsize=11)
+    plt.legend(fontsize=11, loc='upper left', bbox_to_anchor=(1.02, 1), frameon=True)
     plt.grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -308,7 +309,19 @@ def plot_trajectory_evolution(
         ax.set_title(title)
         ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
-        ax.legend()
+    
+    # Collect handles and labels from all subplots for unified legend
+    handles, labels = [], []
+    for ax in axes:
+        h, l = ax.get_legend_handles_labels()
+        for handle, label in zip(h, l):
+            if label not in labels:
+                handles.append(handle)
+                labels.append(label)
+    
+    # Create unified legend outside the plot area
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.02), 
+              ncol=len(labels), frameon=True, fontsize=10)
     
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
@@ -367,7 +380,6 @@ def create_trajectory_animation(
         ax.set_title(title)
         ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
-        ax.legend()
         
         # Set axis limits based on data
         all_x = np.concatenate([ground_truth[:, 0], trajectories[model_name][:, 0]])
@@ -375,6 +387,13 @@ def create_trajectory_animation(
         margin = 0.1
         ax.set_xlim(all_x.min() - margin, all_x.max() + margin)
         ax.set_ylim(all_y.min() - margin, all_y.max() + margin)
+    
+    # Collect handles and labels from first subplot for unified legend
+    handles, labels = axes[0].get_legend_handles_labels()
+    
+    # Create unified legend outside the plot area
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.02), 
+              ncol=len(labels), frameon=True, fontsize=10)
     
     def update(frame_idx):
         """Update function for animation."""
@@ -446,9 +465,15 @@ def plot_sine_wave_comparison(
             ax.set_ylabel('Amplitude')
             ax.set_title(f'{model_name} - Wave {row + 1}')
             ax.grid(True, alpha=0.3)
-            ax.legend(fontsize=8)
+    
+    # Collect handles and labels from first row for unified legend
+    handles, labels = axes[0, 0].get_legend_handles_labels()
     
     plt.suptitle(f'Sine Wave Reconstruction (σ = {sigma})', fontsize=14, fontweight='bold')
+    # Create unified legend outside the plot area
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.01), 
+              ncol=3, frameon=True, fontsize=9)
+    
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -525,10 +550,16 @@ def plot_phase_space(
         ax.set_ylabel('Momentum (p)')
         ax.set_title(f'{model_name} Phase Space')
         ax.grid(True, alpha=0.3)
-        ax.legend()
         ax.set_aspect('equal')
     
+    # Collect handles and labels from first subplot for unified legend
+    handles, labels = axes[0].get_legend_handles_labels()
+    
     plt.suptitle(f'Phase Space Trajectories (σ = {sigma})', fontsize=14, fontweight='bold')
+    # Create unified legend outside the plot area
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.02), 
+              ncol=len(labels), frameon=True, fontsize=10)
+    
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -612,12 +643,15 @@ def plot_multi_noise_grid(
                        fontsize=12, fontweight='bold', rotation=90, 
                        va='center', ha='center')
             
-            # Legend only on first subplot
-            if row == 0 and col == 0:
-                ax.legend(fontsize=8, loc='upper right')
+    # Collect handles and labels from first subplot for unified legend
+    handles, labels = axes[0, 0].get_legend_handles_labels()
     
     plt.suptitle('Multi-Level Noise Comparison: Model Predictions Across Noise Levels', 
                 fontsize=14, fontweight='bold', y=0.995)
+    # Create unified legend outside the plot area
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.01), 
+              ncol=3, frameon=True, fontsize=9)
+    
     plt.tight_layout(rect=[0, 0, 1, 0.99])
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
