@@ -13,7 +13,7 @@ import numpy as np
 from chlu.config import CHLUConfig, get_default_config
 from chlu.core.chlu_unit import CHLU
 from chlu.data.mnist import load_mnist_pca
-from chlu.training.train import train_chlu
+from chlu.training.train_generative import train_generative
 from chlu.utils.checkpoints import load_checkpoint, save_checkpoint
 from chlu.utils.plotting import plot_dreaming_grid
 
@@ -118,24 +118,14 @@ def run_experiment_c(
     else:
         print(f"  PCA: Disabled (using raw {pca_dim}-dim pixel data)")
 
-    # Convert to CHLU format: we'll treat PCA features as position q
-    # and initialize momentum p to zero (or small random values)
-    # For simplicity, we'll stack q and p: [q, p] where both are pca_dim
-    k1, k2 = jax.random.split(key)
-
-    # Create training data in (q, p) format
-    # Start with q = PCA features, p = small random momentum
-    n_train = len(train_data)
-    p_train = jax.random.normal(k1, (n_train, pca_dim)) * p_train_scale
-    train_qp = jnp.concatenate([train_data, p_train], axis=-1)  # (n, 2*pca_dim)
-
-    # Reshape for training: add time dimension (treat each sample as single timestep)
-    train_qp = train_qp[:, None, :]  # (n, 1, 2*pca_dim)
+    # For generative training, we only need position data (no trajectory format)
+    # train_data is already in the right format: (n_samples, pca_dim)
+    # Data should be normalized to [-1, 1] (already done in load_mnist_pca)
 
     # 2. Initialize model
-    k2, k3 = jax.random.split(k2)
+    k1, k2 = jax.random.split(key)
     print(f"  CHLU kinetic mode: {kinetic_mode}")
-    chlu = CHLU(dim=pca_dim, hidden=hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, kinetic_mode=kinetic_mode, key=k3)
+    chlu = CHLU(dim=pca_dim, hidden=hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, kinetic_mode=kinetic_mode, key=k2)
 
     # Train or load model
     chlu_path = os.path.join(models_dir, "exp_c_chlu.pkl")
@@ -149,21 +139,25 @@ def run_experiment_c(
         if use_pretrained and not model_exists:
             print("\n[2/4] Pre-trained model not found, training from scratch...")
         else:
-            print(f"\n[2/4] Training CHLU ({train_epochs} epochs)...")
+            print(f"\n[2/4] Training CHLU with Generative PCD ({train_epochs} epochs)...")
 
-        chlu, losses, _ = train_chlu(
+        k2, k3 = jax.random.split(k2)
+        chlu, losses, target_energy = train_generative(
             chlu,
-            train_qp,
+            train_data,
             key=k3,
             config=config,
+            epochs=train_epochs,
         )
 
-        print(f"  Final loss: {losses[-1]:.6f}")
+        print(f"  Final wake loss: {losses['wake'][-1]:.6f}")
+        print(f"  Final sleep loss: {losses['sleep'][-1]:.6f}")
+        print(f"  Target energy: {target_energy:.6f}")
 
         # Save trained model
         print("\n  Saving trained model...")
         save_checkpoint(
-            chlu, chlu_path, epoch=train_epochs, loss=float(losses[-1]), config=config
+            chlu, chlu_path, epoch=train_epochs, loss=float(losses['total'][-1]), config=config
         )
         print(f"    Saved to {models_dir}")
 
