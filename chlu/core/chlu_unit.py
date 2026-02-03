@@ -111,7 +111,7 @@ class CHLU(eqx.Module):
             # Compute rest energy term
             rest_energy = (self.rest_mass * self.c) ** 2
 
-            kinetic = jnp.sqrt(p_norm_squared + rest_energy)
+            kinetic = self.c * jnp.sqrt(p_norm_squared + rest_energy)
 
         else:
             raise ValueError(
@@ -182,11 +182,11 @@ class CHLU(eqx.Module):
     ) -> jnp.ndarray:
         """
         Unroll trajectory with energy-based governor (active limit cycle control).
-        
+
         The governor dynamically adjusts friction based on energy error:
         - If current_energy > target_energy (noisy): Apply positive friction (brake)
-        - If current_energy < target_energy (damped): Apply negative friction (inject energy)
-        
+        - If current_energy < target_energy (damped): Coast (maintain energy)
+
         This creates a Van der Pol-like limit cycle attractor at the target energy.
 
         Args:
@@ -203,21 +203,21 @@ class CHLU(eqx.Module):
 
         def scan_fn(state, _):
             q, p = state
-            
+
             # Compute current energy
             current_energy = self.H(q, p)
-            
+
             # Energy error: positive if above target (noise), negative if below (damped)
             energy_error = current_energy - target_energy
-            
+
             # Symmetric control: tanh clamps to [-1, 1] for stability
             # Positive error → positive gamma (friction/brake)
-            # Negative error → negative gamma (anti-friction/accelerate)
-            gamma = sensitivity * jnp.tanh(energy_error)
-            
+            # Negative error → zero gamma (frictionless coasting)
+            gamma = sensitivity * jnp.tanh(jnp.maximum(0, energy_error))
+
             # Step with dynamic gamma
             q_next, p_next = self.step((q, p), dt, gamma)
-            
+
             # Concatenate q and p for output
             output = jnp.concatenate([q_next, p_next])
             return (q_next, p_next), output
@@ -225,8 +225,7 @@ class CHLU(eqx.Module):
         # Run scan for steps-1, then prepend initial condition
         # This ensures output length = steps and includes (q0, p0) as first point
         _, trajectory = jax.lax.scan(scan_fn, (q0, p0), None, length=steps - 1)
-        
+
         # Prepend initial condition to match LSTM/NODE behavior
         initial_state = jnp.concatenate([q0, p0])[None, :]
         return jnp.concatenate([initial_state, trajectory], axis=0)
-
