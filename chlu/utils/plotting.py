@@ -777,7 +777,11 @@ def plot_kinetic_energy_vs_time(
     
     for row in range(n_examples):
         clean_seq = clean_data[row]
-        time_steps = np.arange(len(clean_seq)) * dt
+        
+        # Limit to first 50 timesteps
+        n_steps = min(50, len(clean_seq))
+        clean_seq = clean_seq[:n_steps]
+        time_steps = np.arange(n_steps) * dt
         
         # Compute clean trajectory kinetic energy
         clean_KE = np.array([
@@ -787,7 +791,7 @@ def plot_kinetic_energy_vs_time(
         
         for col, (model_name, color) in enumerate(zip(model_names, colors)):
             ax = axes[row, col]
-            pred_seq = predictions[model_name][row]
+            pred_seq = predictions[model_name][row][:n_steps]
             
             # Plot clean trajectory kinetic energy
             ax.plot(time_steps, clean_KE, 'k-', linewidth=2, label='Clean Signal', alpha=0.7)
@@ -871,7 +875,11 @@ def plot_kinetic_energy_vs_time_unified(
     
     for row in range(n_examples):
         clean_seq = clean_data[row]
-        time_steps = np.arange(len(clean_seq)) * dt
+        
+        # Limit to first 50 timesteps
+        n_steps = min(50, len(clean_seq))
+        clean_seq = clean_seq[:n_steps]
+        time_steps = np.arange(n_steps) * dt
         
         # Compute clean trajectory kinetic energy from position gradient
         clean_KE = compute_newtonian_kinetic_from_trajectory(
@@ -880,7 +888,7 @@ def plot_kinetic_energy_vs_time_unified(
         
         for col, (model_name, color) in enumerate(zip(model_names, colors)):
             ax = axes[row, col]
-            pred_seq = predictions[model_name][row]
+            pred_seq = predictions[model_name][row][:n_steps]
             
             # Plot clean trajectory kinetic energy
             ax.plot(time_steps, clean_KE, 'k-', linewidth=2, label='Clean Signal', alpha=0.7)
