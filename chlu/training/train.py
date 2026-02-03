@@ -14,15 +14,17 @@ from chlu.training.losses import energy_loss, mse_loss
 from chlu.training.replay_buffer import ReplayBuffer
 
 
-def sample_window(key: jax.random.PRNGKey, data: jnp.ndarray, window_size: int) -> jnp.ndarray:
+def sample_window(
+    key: jax.random.PRNGKey, data: jnp.ndarray, window_size: int
+) -> jnp.ndarray:
     """
     Sample a random window from trajectory data.
-    
+
     Args:
         key: JAX random key
         data: Trajectory data of shape (T, dim)
         window_size: Size of the window to sample
-        
+
     Returns:
         Window of shape (window_size, dim)
     """
@@ -89,7 +91,9 @@ def train_chlu(
         dt = config.training.dt
     if window_size is None:
         # Use experiment A config if available, otherwise use full trajectory
-        if hasattr(config, 'experiment_a') and hasattr(config.experiment_a, 'window_size'):
+        if hasattr(config, "experiment_a") and hasattr(
+            config.experiment_a, "window_size"
+        ):
             window_size = config.experiment_a.window_size
         else:
             window_size = None  # Will be set below
@@ -105,7 +109,7 @@ def train_chlu(
 
     n_trajectories, T, state_dim = data.shape
     dim = state_dim // 2
-    
+
     # Set window_size if not provided
     if window_size is None:
         window_size = T  # Use full trajectory if no window specified
@@ -168,7 +172,7 @@ def train_chlu(
             def evolve_single(q, p):
                 def step_fn(state, _):
                     return model.step(state, dt, gamma=sleep_friction), None
-                
+
                 state = (q, p)
                 final_state, _ = jax.lax.scan(step_fn, state, None, length=sleep_steps)
                 return final_state
@@ -194,7 +198,7 @@ def train_chlu(
         # Sample random trajectory
         traj_idx = jax.random.randint(k2, (), 0, n_trajectories)
         full_trajectory = data[traj_idx]
-        
+
         # Sample random window from the trajectory
         k3, k4 = jax.random.split(k3)
         trajectory = sample_window(k4, full_trajectory, window_size)
@@ -235,9 +239,16 @@ def train_chlu(
         p = traj[:, dim:]
         energies = jax.vmap(model.H)(q, p)
         return jnp.mean(energies)
-    
-    # Average energy across all trajectories
-    all_energies = jax.vmap(compute_energy)(data)
-    target_energy = float(jnp.mean(all_energies))
+
+    # Energy across all trajectories
+    all_energies_flat = jax.vmap(compute_energy)(data).flatten()
+
+    # 2. Target the "Floor" (1st Percentile)
+    # This forces the orbit to the bottom of the learned valley.
+    target_energy = float(jnp.percentile(all_energies_flat, 1.0))
+
+    print(f"Mean Energy: {jnp.mean(all_energies_flat)}")
+    print(f"Target (Floor): {target_energy}")
+    # target_energy = float(jnp.mean(all_energies))
 
     return model, jnp.array(losses), target_energy
