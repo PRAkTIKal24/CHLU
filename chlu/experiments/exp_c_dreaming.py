@@ -125,12 +125,14 @@ def run_experiment_c(
     # 2. Initialize model
     k1, k2 = jax.random.split(key)
     print(f"  CHLU kinetic mode: {kinetic_mode}")
+    print(f"  Using DeepPotentialMLP for high-dimensional MNIST")
     chlu = CHLU(
         dim=pca_dim,
         hidden=hidden_dim,
         rest_mass=config.model.rest_mass,
         c=config.model.speed_of_causality,
         kinetic_mode=kinetic_mode,
+        use_deep_potential=True,  # Use high-capacity network for MNIST
         key=k2,
     )
 

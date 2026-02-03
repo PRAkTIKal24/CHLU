@@ -135,8 +135,11 @@ def cmd_train_chlu(args):
         
         console.print(f"  Training data shape: {train_data.shape}")
         
-        # Initialize model
-        chlu = CHLU(dim=dim, hidden=config.model.hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, key=k2)
+        # Initialize model (use deep potential for MNIST)
+        use_deep = (args.data == 'mnist')
+        if use_deep:
+            console.print("  Using DeepPotentialMLP for MNIST...")
+        chlu = CHLU(dim=dim, hidden=config.model.hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, use_deep_potential=use_deep, key=k2)
         
         # Train model (use generative training for MNIST)
         console.print("  Training...")
