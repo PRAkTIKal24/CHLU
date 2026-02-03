@@ -2,6 +2,7 @@
 
 import equinox as eqx
 import jax
+import jax.nn as jnn
 import jax.numpy as jnp
 
 
@@ -68,3 +69,45 @@ class PotentialMLP(eqx.Module):
         v_g = 0.05 * jnp.sum(q**2)
 
         return v_n + v_g
+
+
+class DeepPotentialMLP(eqx.Module):
+    """
+    High-Capacity Potential for 784-dim MNIST.
+    Architecture: 784 -> 1024 -> 1024 -> 1024 -> 1
+    Activation: Swish (SiLU) for better gradient flow.
+    """
+
+    layers: list
+
+    def __init__(self, dim: int, hidden: int = 1024, key: jax.random.PRNGKey = None):
+        if key is None:
+            key = jax.random.PRNGKey(0)
+        k1, k2, k3, k4 = jax.random.split(key, 4)
+
+        # 3 Hidden Layers (Depth = Sharpness)
+        self.layers = [
+            eqx.nn.Linear(dim, hidden, key=k1),
+            eqx.nn.Linear(hidden, hidden, key=k2),
+            eqx.nn.Linear(hidden, hidden, key=k3),
+            eqx.nn.Linear(hidden, 1, key=k4),  # Output scalar Energy
+        ]
+
+    def __call__(self, q: jnp.ndarray) -> float:
+        x = q
+
+        # Swish Activation (x * sigmoid(x))
+        # Much better for Physics/EBMs than tanh or ReLU
+        x = jnn.swish(self.layers[0](x))
+        x = jnn.swish(self.layers[1](x))
+        x = jnn.swish(self.layers[2](x))
+
+        # Final projection to Scalar Energy
+        x = self.layers[3](x)
+        v_n = jnp.squeeze(x)
+
+        # CRITICAL CHANGE: NO GLOBAL CONFINEMENT (v_g)
+        # We rely on jnp.clip(q, -1, 1) in the step function for boundaries.
+        # We rely on L2 Regularization in the loss for stability.
+
+        return v_n
