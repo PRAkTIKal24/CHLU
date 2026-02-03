@@ -19,6 +19,10 @@ from chlu.utils.plotting import (
     create_trajectory_animation,
     plot_three_panel_trajectories,
     plot_trajectory_evolution,
+    plot_potential_landscape_2d,
+    plot_potential_surface_3d,
+    plot_force_field,
+    plot_energy_conservation,
 )
 
 
@@ -288,10 +292,44 @@ def run_experiment_a(
         trajectories, test_data, titles, save_path_gif, fps=20, n_frames=100
     )
 
+    # New Potential Visualizations
+    print("\n  Creating potential energy visualizations...")
+    
+    # 1. 2D Potential Landscape with Trajectory Overlay
+    save_path_potential_2d = os.path.join(save_dir, "exp1_potential_landscape_2d.png")
+    plot_potential_landscape_2d(
+        chlu, chlu_traj, save_path_potential_2d, 
+        grid_resolution=100, trajectory_label="CHLU Trajectory"
+    )
+    
+    # 2. 3D Potential Surface
+    save_path_potential_3d = os.path.join(save_dir, "exp1_potential_surface_3d.png")
+    plot_potential_surface_3d(
+        chlu, chlu_traj, save_path_potential_3d, grid_resolution=50
+    )
+    
+    # 3. Force Field Visualization
+    save_path_forces = os.path.join(save_dir, "exp1_force_field.png")
+    plot_force_field(
+        chlu, chlu_traj, save_path_forces, grid_resolution=20
+    )
+    
+    # 4. Energy Conservation Comparison
+    save_path_energy = os.path.join(save_dir, "exp1_energy_conservation.png")
+    plot_energy_conservation(
+        chlu, trajectories, save_path_energy, dt=dt, n_steps_to_plot=test_steps
+    )
+
     print("\n" + "=" * 60)
     print("EXPERIMENT A COMPLETE!")
     print("Results saved to:")
-    print(f"  - {save_path}")
-    print(f"  - {save_path_evolution}")
-    print(f"  - {save_path_gif}")
+    print(f"  Trajectory Comparisons:")
+    print(f"    - {save_path}")
+    print(f"    - {save_path_evolution}")
+    print(f"    - {save_path_gif}")
+    print(f"  Potential Energy Visualizations:")
+    print(f"    - {save_path_potential_2d}")
+    print(f"    - {save_path_potential_3d}")
+    print(f"    - {save_path_forces}")
+    print(f"    - {save_path_energy}")
     print("=" * 60 + "\n")

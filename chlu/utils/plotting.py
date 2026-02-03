@@ -920,3 +920,413 @@ def plot_kinetic_energy_vs_time_unified(
     plt.close()
     
     print(f"Saved Kinetic Energy vs time (Newtonian) plot to {save_path}")
+
+
+def plot_potential_landscape_2d(
+    chlu_model,
+    trajectory: jnp.ndarray,
+    save_path: str,
+    grid_resolution: int = 100,
+    trajectory_label: str = "CHLU Trajectory",
+):
+    """
+    Plot 2D potential landscape V(q) with trajectory overlay.
+    
+    Creates a heatmap/contour plot of the learned potential energy function
+    over the position space with the trajectory overlaid on top.
+    
+    Args:
+        chlu_model: Trained CHLU model with learned potential_net
+        trajectory: Trajectory array (T, 4) with [x, y, vx, vy]
+        save_path: Path to save figure
+        grid_resolution: Number of grid points along each axis (default: 100)
+        trajectory_label: Label for the trajectory (default: "CHLU Trajectory")
+    """
+    # Extract position coordinates from trajectory
+    x_traj = np.array(trajectory[:, 0])
+    y_traj = np.array(trajectory[:, 1])
+    
+    # Create grid bounds with some margin around trajectory
+    margin = 0.3
+    x_min, x_max = x_traj.min() - margin, x_traj.max() + margin
+    y_min, y_max = y_traj.min() - margin, y_traj.max() + margin
+    
+    # Create meshgrid
+    x = np.linspace(x_min, x_max, grid_resolution)
+    y = np.linspace(y_min, y_max, grid_resolution)
+    X, Y = np.meshgrid(x, y)
+    
+    # Compute potential at each grid point
+    V = np.zeros_like(X)
+    for i in range(grid_resolution):
+        for j in range(grid_resolution):
+            q = jnp.array([X[i, j], Y[i, j]])
+            V[i, j] = chlu_model.potential_net(q)
+    
+    # Create figure with two panels: contour + 3D view
+    fig = plt.figure(figsize=(16, 6))
+    
+    # Left panel: 2D contour plot
+    ax1 = fig.add_subplot(121)
+    
+    # Plot filled contours
+    contourf = ax1.contourf(X, Y, V, levels=20, cmap='viridis', alpha=0.8)
+    
+    # Plot contour lines
+    contour = ax1.contour(X, Y, V, levels=10, colors='white', alpha=0.4, linewidths=0.5)
+    ax1.clabel(contour, inline=True, fontsize=8, fmt='%.2f')
+    
+    # Overlay trajectory
+    ax1.plot(x_traj, y_traj, 'r-', linewidth=2.5, label=trajectory_label, alpha=0.9)
+    ax1.scatter(x_traj[0], y_traj[0], c='lime', s=150, marker='o', 
+               edgecolors='darkgreen', linewidths=2, zorder=10, label='Start')
+    ax1.scatter(x_traj[-1], y_traj[-1], c='red', s=150, marker='X', 
+               edgecolors='darkred', linewidths=2, zorder=10, label='End')
+    
+    # Formatting
+    ax1.set_xlabel('x', fontsize=12)
+    ax1.set_ylabel('y', fontsize=12)
+    ax1.set_title('Learned Potential Landscape V(q)', fontsize=14, fontweight='bold')
+    ax1.set_aspect('equal')
+    ax1.legend(fontsize=10, loc='upper right')
+    ax1.grid(True, alpha=0.3)
+    
+    # Add colorbar
+    cbar = plt.colorbar(contourf, ax=ax1)
+    cbar.set_label('Potential Energy V(q)', fontsize=11)
+    
+    # Right panel: 3D surface plot
+    ax2 = fig.add_subplot(122, projection='3d')
+    
+    # Plot surface
+    surf = ax2.plot_surface(X, Y, V, cmap='viridis', alpha=0.7, 
+                           edgecolor='none', antialiased=True)
+    
+    # Plot trajectory on surface
+    V_traj = np.array([chlu_model.potential_net(jnp.array([x_traj[i], y_traj[i]])) 
+                       for i in range(len(x_traj))])
+    ax2.plot(x_traj, y_traj, V_traj, 'r-', linewidth=2.5, label=trajectory_label)
+    ax2.scatter(x_traj[0], y_traj[0], V_traj[0], c='lime', s=100, 
+               marker='o', edgecolors='darkgreen', linewidths=2, zorder=10)
+    ax2.scatter(x_traj[-1], y_traj[-1], V_traj[-1], c='red', s=100, 
+               marker='X', edgecolors='darkred', linewidths=2, zorder=10)
+    
+    # Formatting
+    ax2.set_xlabel('x', fontsize=11)
+    ax2.set_ylabel('y', fontsize=11)
+    ax2.set_zlabel('V(q)', fontsize=11)
+    ax2.set_title('3D Potential Surface', fontsize=14, fontweight='bold')
+    ax2.view_init(elev=25, azim=45)
+    
+    # Add colorbar
+    cbar2 = plt.colorbar(surf, ax=ax2, shrink=0.5, aspect=10)
+    cbar2.set_label('V(q)', fontsize=10)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Saved 2D potential landscape to {save_path}")
+
+
+def plot_potential_surface_3d(
+    chlu_model,
+    trajectory: jnp.ndarray,
+    save_path: str,
+    grid_resolution: int = 50,
+):
+    """
+    Plot 3D potential surface V(q) with trajectory.
+    
+    Creates a 3D surface plot showing the learned potential energy landscape
+    with the trajectory plotted as a path on the surface.
+    
+    Args:
+        chlu_model: Trained CHLU model with learned potential_net
+        trajectory: Trajectory array (T, 4) with [x, y, vx, vy]
+        save_path: Path to save figure
+        grid_resolution: Number of grid points along each axis (default: 50)
+    """
+    from mpl_toolkits.mplot3d import Axes3D
+    
+    # Extract position coordinates from trajectory
+    x_traj = np.array(trajectory[:, 0])
+    y_traj = np.array(trajectory[:, 1])
+    
+    # Create grid bounds with some margin around trajectory
+    margin = 0.3
+    x_min, x_max = x_traj.min() - margin, x_traj.max() + margin
+    y_min, y_max = y_traj.min() - margin, y_traj.max() + margin
+    
+    # Create meshgrid
+    x = np.linspace(x_min, x_max, grid_resolution)
+    y = np.linspace(y_min, y_max, grid_resolution)
+    X, Y = np.meshgrid(x, y)
+    
+    # Compute potential at each grid point
+    V = np.zeros_like(X)
+    for i in range(grid_resolution):
+        for j in range(grid_resolution):
+            q = jnp.array([X[i, j], Y[i, j]])
+            V[i, j] = chlu_model.potential_net(q)
+    
+    # Compute potential along trajectory
+    V_traj = np.array([chlu_model.potential_net(jnp.array([x_traj[i], y_traj[i]])) 
+                       for i in range(len(x_traj))])
+    
+    # Create figure with multiple viewing angles
+    fig = plt.figure(figsize=(18, 6))
+    
+    for idx, (elev, azim, title_suffix) in enumerate([
+        (30, 45, '(View 1)'),
+        (20, 135, '(View 2)'),
+        (60, 225, '(View 3)')
+    ]):
+        ax = fig.add_subplot(1, 3, idx + 1, projection='3d')
+        
+        # Plot surface with gradient coloring
+        surf = ax.plot_surface(X, Y, V, cmap='viridis', alpha=0.6, 
+                             edgecolor='none', antialiased=True, shade=True)
+        
+        # Plot trajectory on the surface
+        ax.plot(x_traj, y_traj, V_traj, 'r-', linewidth=3, label='CHLU Trajectory', zorder=10)
+        
+        # Mark start and end points
+        ax.scatter(x_traj[0], y_traj[0], V_traj[0], c='lime', s=150, 
+                  marker='o', edgecolors='darkgreen', linewidths=2, zorder=15, label='Start')
+        ax.scatter(x_traj[-1], y_traj[-1], V_traj[-1], c='red', s=150, 
+                  marker='X', edgecolors='darkred', linewidths=2, zorder=15, label='End')
+        
+        # Formatting
+        ax.set_xlabel('x Position', fontsize=10)
+        ax.set_ylabel('y Position', fontsize=10)
+        ax.set_zlabel('Potential V(q)', fontsize=10)
+        ax.set_title(f'Learned Potential Surface {title_suffix}', fontsize=12, fontweight='bold')
+        ax.view_init(elev=elev, azim=azim)
+        
+        if idx == 0:
+            ax.legend(fontsize=9, loc='upper left')
+    
+    plt.suptitle('3D Potential Energy Landscape - Multiple Views', fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Saved 3D potential surface to {save_path}")
+
+
+def plot_force_field(
+    chlu_model,
+    trajectory: jnp.ndarray,
+    save_path: str,
+    grid_resolution: int = 20,
+):
+    """
+    Plot force field F = -∇V(q) with trajectory overlay.
+    
+    Creates a vector field showing the forces derived from the learned potential,
+    with arrows color-coded by magnitude. The trajectory is overlaid to show
+    how it flows through the force field.
+    
+    Args:
+        chlu_model: Trained CHLU model with learned potential_net
+        trajectory: Trajectory array (T, 4) with [x, y, vx, vy]
+        save_path: Path to save figure
+        grid_resolution: Number of grid points along each axis (default: 20)
+    """
+    # Extract position coordinates from trajectory
+    x_traj = np.array(trajectory[:, 0])
+    y_traj = np.array(trajectory[:, 1])
+    
+    # Create grid bounds with some margin around trajectory
+    margin = 0.3
+    x_min, x_max = x_traj.min() - margin, x_traj.max() + margin
+    y_min, y_max = y_traj.min() - margin, y_traj.max() + margin
+    
+    # Create meshgrid for vector field
+    x = np.linspace(x_min, x_max, grid_resolution)
+    y = np.linspace(y_min, y_max, grid_resolution)
+    X, Y = np.meshgrid(x, y)
+    
+    # Compute gradient of potential at each grid point: F = -∇V
+    Fx = np.zeros_like(X)
+    Fy = np.zeros_like(Y)
+    
+    # Use JAX's automatic differentiation to compute gradient
+    grad_V = jax.grad(chlu_model.potential_net)
+    
+    for i in range(grid_resolution):
+        for j in range(grid_resolution):
+            q = jnp.array([X[i, j], Y[i, j]])
+            grad = grad_V(q)
+            # Force is negative gradient of potential
+            Fx[i, j] = -grad[0]
+            Fy[i, j] = -grad[1]
+    
+    # Compute force magnitude for coloring
+    F_mag = np.sqrt(Fx**2 + Fy**2)
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 10))
+    
+    # Plot vector field with color based on magnitude
+    quiver = ax.quiver(X, Y, Fx, Fy, F_mag, 
+                      cmap='plasma', 
+                      scale=20,
+                      scale_units='xy',
+                      width=0.004,
+                      alpha=0.7,
+                      pivot='mid')
+    
+    # Add colorbar for force magnitude
+    cbar = plt.colorbar(quiver, ax=ax)
+    cbar.set_label('Force Magnitude |F|', fontsize=12)
+    
+    # Overlay trajectory
+    ax.plot(x_traj, y_traj, 'cyan', linewidth=3, label='CHLU Trajectory', 
+           alpha=0.9, zorder=10)
+    ax.scatter(x_traj[0], y_traj[0], c='lime', s=200, marker='o', 
+              edgecolors='darkgreen', linewidths=2.5, zorder=15, label='Start')
+    ax.scatter(x_traj[-1], y_traj[-1], c='red', s=200, marker='X', 
+              edgecolors='darkred', linewidths=2.5, zorder=15, label='End')
+    
+    # Formatting
+    ax.set_xlabel('x Position', fontsize=13)
+    ax.set_ylabel('y Position', fontsize=13)
+    ax.set_title('Force Field: F = -∇V(q)', fontsize=15, fontweight='bold')
+    ax.set_aspect('equal')
+    ax.legend(fontsize=11, loc='upper right', framealpha=0.9)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Saved force field plot to {save_path}")
+
+
+def plot_energy_conservation(
+    chlu_model,
+    trajectories: dict,
+    save_path: str,
+    dt: float = 0.01,
+    n_steps_to_plot: int = None,
+):
+    """
+    Plot energy conservation comparison across models.
+    
+    Shows total energy H(q,p), kinetic energy T(p), and potential energy V(q)
+    over time for CHLU, NODE, and LSTM. CHLU should show flat energy (conserved),
+    while baselines drift.
+    
+    Args:
+        chlu_model: Trained CHLU model (to compute Hamiltonian)
+        trajectories: Dict with keys "LSTM", "NODE", "CHLU" and trajectory arrays
+        save_path: Path to save figure
+        dt: Time step size
+        n_steps_to_plot: Number of steps to plot (default: all)
+    """
+    model_names = ["LSTM", "NODE", "CHLU"]
+    colors = ['red', 'orange', 'green']
+    
+    # Create figure with 4 panels: Total Energy, Kinetic, Potential, and Combined
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    axes = axes.flatten()
+    
+    for model_name, color in zip(model_names, colors):
+        traj = trajectories[model_name]
+        
+        # Limit steps if specified
+        if n_steps_to_plot is not None:
+            traj = traj[:n_steps_to_plot]
+        
+        n_steps = len(traj)
+        time = np.arange(n_steps) * dt
+        
+        # Extract positions and momenta
+        q_seq = traj[:, :2]  # First 2 components are positions
+        p_seq = traj[:, 2:]  # Last 2 components are momenta
+        
+        # Compute energies at each timestep
+        H_seq = []
+        T_seq = []
+        V_seq = []
+        
+        for i in range(n_steps):
+            q = jnp.array(q_seq[i])
+            p = jnp.array(p_seq[i])
+            
+            # Compute Hamiltonian (total energy)
+            H = chlu_model.H(q, p)
+            H_seq.append(H)
+            
+            # Compute kinetic energy
+            M = jax.nn.softplus(chlu_model.log_mass)
+            M_inv = 1.0 / (M + 1e-6)
+            
+            if chlu_model.kinetic_mode == "relativistic":
+                p_norm_squared = jnp.sum((p * p) * M_inv)
+                rest_energy = (chlu_model.rest_mass * chlu_model.c) ** 2
+                T = chlu_model.c * jnp.sqrt(p_norm_squared + rest_energy)
+            elif chlu_model.kinetic_mode == "newtonian_learned":
+                T = 0.5 * jnp.sum((p * p) * M_inv)
+            else:  # newtonian_identity
+                T = 0.5 * jnp.sum(p * p)
+            
+            T_seq.append(T)
+            
+            # Compute potential energy
+            V = chlu_model.potential_net(q)
+            V_seq.append(V)
+        
+        H_seq = np.array(H_seq)
+        T_seq = np.array(T_seq)
+        V_seq = np.array(V_seq)
+        
+        # Panel 1: Total Energy (Hamiltonian)
+        axes[0].plot(time, H_seq, color=color, linewidth=2, label=model_name, alpha=0.8)
+        
+        # Panel 2: Kinetic Energy
+        axes[1].plot(time, T_seq, color=color, linewidth=2, label=model_name, alpha=0.8)
+        
+        # Panel 3: Potential Energy
+        axes[2].plot(time, V_seq, color=color, linewidth=2, label=model_name, alpha=0.8)
+        
+        # Panel 4: Kinetic + Potential (stacked or separate)
+        axes[3].plot(time, T_seq, color=color, linewidth=1.5, 
+                    linestyle='--', alpha=0.6, label=f'{model_name} T')
+        axes[3].plot(time, V_seq, color=color, linewidth=1.5, 
+                    linestyle=':', alpha=0.6, label=f'{model_name} V')
+    
+    # Formatting for each panel
+    axes[0].set_xlabel('Time (s)', fontsize=12)
+    axes[0].set_ylabel('Total Energy H(q,p)', fontsize=12)
+    axes[0].set_title('Total Energy (Hamiltonian)', fontsize=13, fontweight='bold')
+    axes[0].legend(fontsize=10, loc='best')
+    axes[0].grid(True, alpha=0.3)
+    
+    axes[1].set_xlabel('Time (s)', fontsize=12)
+    axes[1].set_ylabel('Kinetic Energy T(p)', fontsize=12)
+    axes[1].set_title('Kinetic Energy', fontsize=13, fontweight='bold')
+    axes[1].legend(fontsize=10, loc='best')
+    axes[1].grid(True, alpha=0.3)
+    
+    axes[2].set_xlabel('Time (s)', fontsize=12)
+    axes[2].set_ylabel('Potential Energy V(q)', fontsize=12)
+    axes[2].set_title('Potential Energy', fontsize=13, fontweight='bold')
+    axes[2].legend(fontsize=10, loc='best')
+    axes[2].grid(True, alpha=0.3)
+    
+    axes[3].set_xlabel('Time (s)', fontsize=12)
+    axes[3].set_ylabel('Energy', fontsize=12)
+    axes[3].set_title('Energy Components (T and V)', fontsize=13, fontweight='bold')
+    axes[3].legend(fontsize=9, loc='best', ncol=2)
+    axes[3].grid(True, alpha=0.3)
+    
+    plt.suptitle('Energy Conservation Comparison: CHLU vs Baselines', 
+                fontsize=15, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Saved energy conservation plot to {save_path}")
