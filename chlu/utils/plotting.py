@@ -503,6 +503,16 @@ def plot_phase_space(
                 ax.scatter(noisy_seq[::10, 0], noisy_seq[::10, 1], c='gray', 
                           s=15, alpha=0.3)
             
+            # Mark initial condition with blue triangle
+            if row == 0:
+                ax.scatter(noisy_seq[0, 0], noisy_seq[0, 1], marker='^', 
+                          c='blue', s=150, edgecolors='darkblue', linewidths=1.5, 
+                          zorder=10, label='Initial Conditions')
+            else:
+                ax.scatter(noisy_seq[0, 0], noisy_seq[0, 1], marker='^', 
+                          c='blue', s=150, edgecolors='darkblue', linewidths=1.5, 
+                          zorder=10)
+            
             # Plot prediction
             if row == 0:
                 ax.plot(pred_seq[:, 0], pred_seq[:, 1], color=color, linewidth=2, 
