@@ -95,12 +95,16 @@ def train_generative(
         energy_weight = config.training.energy_weight
     if sleep_friction is None:
         # Default to 0.1 for generative training (vs 0.0 for dynamics)
-        sleep_friction = 0.1 if config.training.sleep_friction == 0.0 else config.training.sleep_friction
+        sleep_friction = (
+            0.1
+            if config.training.sleep_friction == 0.0
+            else config.training.sleep_friction
+        )
 
     # Handle data shape
     if data.ndim == 1:
         data = data[None, :]  # Add batch dimension
-    
+
     n_samples, dim = data.shape
 
     # Initialize optimizer
@@ -177,7 +181,7 @@ def train_generative(
 
             # Sleep: Maximize energy of fake/dream data
             # "Pull this random noise up the hill"
-            # Negative sign because we minimize the negative (i.e., maximize)
+            # Negative sign because we maximize
             loss_sleep = -energy_loss(model, q_fake, p_fake)
 
             # Total contrastive loss
@@ -199,9 +203,11 @@ def train_generative(
     # Training loop
     print(f"Training generative model for {epochs} epochs...")
     print(f"Buffer capacity: {buffer_capacity}, Batch size: {batch_size}")
-    print(f"Re-init prob: {reinit_prob}, K-steps: {k_steps}, Friction: {sleep_friction}")
+    print(
+        f"Re-init prob: {reinit_prob}, K-steps: {k_steps}, Friction: {sleep_friction}"
+    )
 
-    for epoch in tqdm(range(epochs), desc="Training (Generative)"):
+    for _epoch in tqdm(range(epochs), desc="Training (Generative)"):
         k2, subkey = jax.random.split(k2)
 
         # Sample random batch of real data
@@ -235,7 +241,7 @@ def train_generative(
     all_energies = jax.vmap(model.H)(data, p_zeros)
     target_energy = float(jnp.percentile(all_energies, 1.0))
 
-    print(f"\nTraining complete!")
+    print("\nTraining complete!")
     print(f"Mean real data energy: {jnp.mean(all_energies):.4f}")
     print(f"Target energy (1st percentile): {target_energy:.4f}")
 
