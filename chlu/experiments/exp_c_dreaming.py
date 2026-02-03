@@ -93,7 +93,7 @@ def run_experiment_c(
     dt = config.experiment_c.dt
     hidden_dim = config.experiment_c.hidden_dim
     n_dreams = config.experiment_c.n_dreams
-    p_train_scale = config.experiment_c.p_train_scale
+    p_train_scale = config.experiment_c.p_train_scale  # noqa: F841
     q_noise_scale = config.experiment_c.q_noise_scale
     p_noise_scale = config.experiment_c.p_noise_scale
     snapshot_steps = config.experiment_c.snapshot_steps
@@ -125,7 +125,14 @@ def run_experiment_c(
     # 2. Initialize model
     k1, k2 = jax.random.split(key)
     print(f"  CHLU kinetic mode: {kinetic_mode}")
-    chlu = CHLU(dim=pca_dim, hidden=hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, kinetic_mode=kinetic_mode, key=k2)
+    chlu = CHLU(
+        dim=pca_dim,
+        hidden=hidden_dim,
+        rest_mass=config.model.rest_mass,
+        c=config.model.speed_of_causality,
+        kinetic_mode=kinetic_mode,
+        key=k2,
+    )
 
     # Train or load model
     chlu_path = os.path.join(models_dir, "exp_c_chlu.pkl")
@@ -139,7 +146,9 @@ def run_experiment_c(
         if use_pretrained and not model_exists:
             print("\n[2/4] Pre-trained model not found, training from scratch...")
         else:
-            print(f"\n[2/4] Training CHLU with Generative PCD ({train_epochs} epochs)...")
+            print(
+                f"\n[2/4] Training CHLU with Generative PCD ({train_epochs} epochs)..."
+            )
 
         k2, k3 = jax.random.split(k2)
         chlu, losses, target_energy = train_generative(
@@ -157,7 +166,11 @@ def run_experiment_c(
         # Save trained model
         print("\n  Saving trained model...")
         save_checkpoint(
-            chlu, chlu_path, epoch=train_epochs, loss=float(losses['total'][-1]), config=config
+            chlu,
+            chlu_path,
+            epoch=train_epochs,
+            loss=float(losses["total"][-1]),
+            config=config,
         )
         print(f"    Saved to {models_dir}")
 
