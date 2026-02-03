@@ -240,9 +240,29 @@ def run_experiment_c(
         plot_dreaming_grid(images, full_path, n_rows=4, n_cols=8, image_shape=(28, 28))
         print(f"  Saved {title} to {full_path}")
 
-    # Plot both
-    decode_and_plot(final_states_ghosts, "exp3_ghosts.png", "Orbital Ghosts")
-    decode_and_plot(final_states_annealed, "exp3_annealed.png", "Annealed Digits")
+    # Plot final states
+    decode_and_plot(final_states_ghosts, "exp3_ghosts_final.png", "Orbital Ghosts (Final)")
+    decode_and_plot(final_states_annealed, "exp3_annealed_final.png", "Annealed Digits (Final)")
+    
+    # Plot intermediate snapshots
+    print(f"\n  Saving {len(snap_indices)} intermediate snapshots...")
+    for snap_idx, step_num in enumerate(snapshot_steps):
+        if step_num < dream_steps:  # Only save valid snapshots
+            # Extract all dreams at this snapshot step
+            # snaps_ghosts shape: (n_dreams, n_snapshots, pca_dim)
+            ghosts_at_step = snaps_ghosts[:, snap_idx, :]  # (n_dreams, pca_dim)
+            annealed_at_step = snaps_annealed[:, snap_idx, :]  # (n_dreams, pca_dim)
+            
+            decode_and_plot(
+                ghosts_at_step, 
+                f"exp3_ghosts_step_{step_num:03d}.png", 
+                f"Ghosts at step {step_num}"
+            )
+            decode_and_plot(
+                annealed_at_step, 
+                f"exp3_annealed_step_{step_num:03d}.png", 
+                f"Annealed at step {step_num}"
+            )
 
     print("\n" + "=" * 60)
     print("EXPERIMENT C COMPLETE!")
