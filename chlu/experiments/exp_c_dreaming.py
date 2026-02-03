@@ -244,7 +244,47 @@ def run_experiment_c(
     decode_and_plot(final_states_ghosts, "exp3_ghosts_final.png", "Orbital Ghosts (Final)")
     decode_and_plot(final_states_annealed, "exp3_annealed_final.png", "Annealed Digits (Final)")
     
-    # Plot intermediate snapshots
+    # Plot evolution grids: 5 samples × time progression
+    print(f"\n  Creating evolution grids (5 samples × {len(snap_indices)} snapshots)...")
+    n_evolution_samples = 5
+    
+    def plot_evolution(snapshots, filename, title):
+        """Plot evolution of n samples across all snapshot steps.
+        
+        Args:
+            snapshots: shape (n_dreams, n_snapshots, pca_dim)
+            filename: output filename
+            title: plot title
+        """
+        # Take first n_evolution_samples
+        evolution_data = snapshots[:n_evolution_samples]  # (5, n_snapshots, pca_dim)
+        
+        # Reshape to (5 * n_snapshots, pca_dim) for batch processing
+        n_snaps = evolution_data.shape[1]
+        evolution_flat = evolution_data.reshape(-1, pca_dim)
+        
+        # Decode all at once
+        if pca is not None:
+            images = pca.inverse_transform(evolution_flat)
+        else:
+            images = np.array(evolution_flat)
+        images = images.reshape(-1, 28, 28)
+        
+        # Save with grid: rows=samples, cols=time steps
+        full_path = os.path.join(save_dir, filename)
+        plot_dreaming_grid(
+            images, 
+            full_path, 
+            n_rows=n_evolution_samples, 
+            n_cols=n_snaps, 
+            image_shape=(28, 28)
+        )
+        print(f"  Saved {title} to {full_path}")
+    
+    plot_evolution(snaps_ghosts, "exp3_ghosts_evolution.png", "Ghosts Evolution")
+    plot_evolution(snaps_annealed, "exp3_annealed_evolution.png", "Annealed Evolution")
+    
+    # Plot intermediate snapshots (all samples at each timestep)
     print(f"\n  Saving {len(snap_indices)} intermediate snapshots...")
     for snap_idx, step_num in enumerate(snapshot_steps):
         if step_num < dream_steps:  # Only save valid snapshots
