@@ -2,6 +2,7 @@
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import jax
 import jax.numpy as jnp
 import numpy as np
 
@@ -718,7 +719,7 @@ def plot_noise_heatmap(
     
     print(f"Saved noise heatmap to {save_path}")
 
-def plot_hamiltonian_vs_time(
+def plot_kinetic_energy_vs_time(
     clean_data: jnp.ndarray,
     predictions: dict,
     save_path: str,
@@ -728,25 +729,23 @@ def plot_hamiltonian_vs_time(
     sigma: float = 0.5,
     rest_mass: float = 1.0,
     c: float = 5.0,
-    freq: float = 1.0,
 ):
     """
-    Plot Hamiltonian vs time for all three models (CHLU with learned H).
+    Plot Kinetic Energy vs time for all three models (CHLU with learned KE).
     
-    LSTM/NODE use relativistic kinetic energy + harmonic oscillator potential.
-    CHLU uses its learned Hamiltonian function.
+    LSTM/NODE use relativistic kinetic energy from momentum values.
+    CHLU computes kinetic energy from its learned relativistic Hamiltonian.
     
     Args:
         clean_data: Clean test data (n_waves, steps, 2)
         predictions: Dict with keys "LSTM", "NODE", "CHLU" and prediction arrays
         save_path: Path to save figure
-        chlu_model: CHLU model instance (to compute learned Hamiltonian)
+        chlu_model: CHLU model instance (to compute learned kinetic energy)
         dt: Time step size
         n_examples: Number of example waves to show
         sigma: Noise level used
-        rest_mass: Rest mass for relativistic Hamiltonian (default: 1.0)
+        rest_mass: Rest mass for relativistic kinetic energy (default: 1.0)
         c: Speed of causality (default: 5.0)
-        freq: Sine wave frequency for harmonic potential (default: 1.0 Hz)
     """
     n_examples = min(n_examples, len(clean_data))
     fig, axes = plt.subplots(n_examples, 3, figsize=(15, 4 * n_examples))
@@ -757,24 +756,32 @@ def plot_hamiltonian_vs_time(
     model_names = ["LSTM", "NODE", "CHLU"]
     colors = ['red', 'orange', 'green']
     
-    # Compute omega for harmonic oscillator potential
-    omega = 2 * np.pi * freq
+    def compute_relativistic_kinetic(p, rest_mass, c):
+        """Compute relativistic kinetic energy: sqrt(p^2 + (m*c)^2)."""
+        return jnp.sqrt(p**2 + (rest_mass * c)**2)
     
-    def compute_harmonic_hamiltonian(q, p, rest_mass, c, omega):
-        """Compute relativistic kinetic + harmonic potential."""
-        # Kinetic: sqrt(p^2 + (m*c)^2)
-        kinetic = jnp.sqrt(p**2 + (rest_mass * c)**2)
-        # Potential: 0.5 * omega^2 * q^2
-        potential = 0.5 * omega**2 * q**2
-        return kinetic + potential
+    def compute_chlu_kinetic(q, p, chlu_model):
+        """Extract kinetic energy from CHLU's Hamiltonian."""
+        # Get mass parameters
+        M = jax.nn.softplus(chlu_model.log_mass)
+        M_inv = 1.0 / (M + 1e-6)
+        
+        if chlu_model.kinetic_mode == "relativistic":
+            p_norm_squared = jnp.sum((p * p) * M_inv)
+            rest_energy = (chlu_model.rest_mass * chlu_model.c) ** 2
+            return jnp.sqrt(p_norm_squared + rest_energy)
+        elif chlu_model.kinetic_mode == "newtonian_learned":
+            return 0.5 * jnp.sum((p * p) * M_inv)
+        else:  # newtonian_identity
+            return 0.5 * jnp.sum(p * p)
     
     for row in range(n_examples):
         clean_seq = clean_data[row]
         time_steps = np.arange(len(clean_seq)) * dt
         
-        # Compute clean trajectory Hamiltonian (using harmonic oscillator)
-        clean_H = np.array([
-            compute_harmonic_hamiltonian(clean_seq[t, 0], clean_seq[t, 1], rest_mass, c, omega)
+        # Compute clean trajectory kinetic energy
+        clean_KE = np.array([
+            compute_relativistic_kinetic(clean_seq[t, 1], rest_mass, c)
             for t in range(len(clean_seq))
         ])
         
@@ -782,35 +789,35 @@ def plot_hamiltonian_vs_time(
             ax = axes[row, col]
             pred_seq = predictions[model_name][row]
             
-            # Plot clean trajectory Hamiltonian
-            ax.plot(time_steps, clean_H, 'k-', linewidth=2, label='Clean Signal', alpha=0.7)
+            # Plot clean trajectory kinetic energy
+            ax.plot(time_steps, clean_KE, 'k-', linewidth=2, label='Clean Signal', alpha=0.7)
             
-            # Compute and plot model prediction Hamiltonian
+            # Compute and plot model prediction kinetic energy
             if model_name == "CHLU" and chlu_model is not None:
-                # Use CHLU's learned Hamiltonian
-                pred_H = np.array([
-                    chlu_model.H(pred_seq[t, 0:1], pred_seq[t, 1:2])
+                # Use CHLU's learned kinetic energy
+                pred_KE = np.array([
+                    compute_chlu_kinetic(pred_seq[t, 0:1], pred_seq[t, 1:2], chlu_model)
                     for t in range(len(pred_seq))
                 ])
             else:
-                # Use relativistic kinetic + harmonic potential for LSTM/NODE
-                pred_H = np.array([
-                    compute_harmonic_hamiltonian(pred_seq[t, 0], pred_seq[t, 1], rest_mass, c, omega)
+                # Use relativistic kinetic energy from p for LSTM/NODE
+                pred_KE = np.array([
+                    compute_relativistic_kinetic(pred_seq[t, 1], rest_mass, c)
                     for t in range(len(pred_seq))
                 ])
             
-            ax.plot(time_steps, pred_H, color=color, linewidth=2, 
+            ax.plot(time_steps, pred_KE, color=color, linewidth=2, 
                    label=f'{model_name} Prediction', linestyle='--')
             
             ax.set_xlabel('Time (s)', fontsize=10)
-            ax.set_ylabel('Hamiltonian (Energy)', fontsize=10)
+            ax.set_ylabel('Kinetic Energy', fontsize=10)
             ax.set_title(f'{model_name} - Wave {row + 1}', fontsize=11)
             ax.grid(True, alpha=0.3)
     
     # Collect handles and labels from first row for unified legend
     handles, labels = axes[0, 0].get_legend_handles_labels()
     
-    plt.suptitle(f'Hamiltonian vs Time (σ = {sigma}) - CHLU with Learned H', 
+    plt.suptitle(f'Kinetic Energy vs Time (σ = {sigma}) - Relativistic', 
                 fontsize=14, fontweight='bold')
     # Create unified legend outside the plot area
     fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.01), 
@@ -820,25 +827,23 @@ def plot_hamiltonian_vs_time(
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
     
-    print(f"Saved Hamiltonian vs time (learned) plot to {save_path}")
+    print(f"Saved Kinetic Energy vs time (relativistic) plot to {save_path}")
 
 
-def plot_hamiltonian_vs_time_unified(
+def plot_kinetic_energy_vs_time_unified(
     clean_data: jnp.ndarray,
     predictions: dict,
     save_path: str,
     dt: float = 0.01,
     n_examples: int = 3,
     sigma: float = 0.5,
-    rest_mass: float = 1.0,
-    c: float = 5.0,
-    freq: float = 1.0,
 ):
     """
-    Plot Hamiltonian vs time using same formula for all models.
+    Plot Kinetic Energy vs time using same formula for all models.
     
-    All models use relativistic kinetic energy + harmonic oscillator potential.
-    This provides an apples-to-apples comparison based solely on predicted (q, p).
+    All models use Newtonian kinetic energy: KE = 0.5 * v^2
+    where v = dq/dt is computed from consecutive position values.
+    This provides an apples-to-apples comparison based solely on predicted trajectories.
     
     Args:
         clean_data: Clean test data (n_waves, steps, 2)
@@ -847,9 +852,6 @@ def plot_hamiltonian_vs_time_unified(
         dt: Time step size
         n_examples: Number of example waves to show
         sigma: Noise level used
-        rest_mass: Rest mass for relativistic Hamiltonian (default: 1.0)
-        c: Speed of causality (default: 5.0)
-        freq: Sine wave frequency for harmonic potential (default: 1.0 Hz)
     """
     n_examples = min(n_examples, len(clean_data))
     fig, axes = plt.subplots(n_examples, 3, figsize=(15, 4 * n_examples))
@@ -860,52 +862,46 @@ def plot_hamiltonian_vs_time_unified(
     model_names = ["LSTM", "NODE", "CHLU"]
     colors = ['red', 'orange', 'green']
     
-    # Compute omega for harmonic oscillator potential
-    omega = 2 * np.pi * freq
-    
-    def compute_harmonic_hamiltonian(q, p, rest_mass, c, omega):
-        """Compute relativistic kinetic + harmonic potential."""
-        # Kinetic: sqrt(p^2 + (m*c)^2)
-        kinetic = jnp.sqrt(p**2 + (rest_mass * c)**2)
-        # Potential: 0.5 * omega^2 * q^2
-        potential = 0.5 * omega**2 * q**2
-        return kinetic + potential
+    def compute_newtonian_kinetic_from_trajectory(q_trajectory, dt):
+        """Compute KE = 0.5 * v^2 where v = dq/dt from consecutive positions."""
+        # Compute velocity using finite differences
+        v = np.gradient(q_trajectory, dt)
+        # Compute kinetic energy
+        return 0.5 * v**2
     
     for row in range(n_examples):
         clean_seq = clean_data[row]
         time_steps = np.arange(len(clean_seq)) * dt
         
-        # Compute clean trajectory Hamiltonian
-        clean_H = np.array([
-            compute_harmonic_hamiltonian(clean_seq[t, 0], clean_seq[t, 1], rest_mass, c, omega)
-            for t in range(len(clean_seq))
-        ])
+        # Compute clean trajectory kinetic energy from position gradient
+        clean_KE = compute_newtonian_kinetic_from_trajectory(
+            np.array(clean_seq[:, 0]), dt
+        )
         
         for col, (model_name, color) in enumerate(zip(model_names, colors)):
             ax = axes[row, col]
             pred_seq = predictions[model_name][row]
             
-            # Plot clean trajectory Hamiltonian
-            ax.plot(time_steps, clean_H, 'k-', linewidth=2, label='Clean Signal', alpha=0.7)
+            # Plot clean trajectory kinetic energy
+            ax.plot(time_steps, clean_KE, 'k-', linewidth=2, label='Clean Signal', alpha=0.7)
             
-            # Compute prediction Hamiltonian (same formula for all)
-            pred_H = np.array([
-                compute_harmonic_hamiltonian(pred_seq[t, 0], pred_seq[t, 1], rest_mass, c, omega)
-                for t in range(len(pred_seq))
-            ])
+            # Compute prediction kinetic energy from position gradient (same for all)
+            pred_KE = compute_newtonian_kinetic_from_trajectory(
+                np.array(pred_seq[:, 0]), dt
+            )
             
-            ax.plot(time_steps, pred_H, color=color, linewidth=2, 
+            ax.plot(time_steps, pred_KE, color=color, linewidth=2, 
                    label=f'{model_name} Prediction', linestyle='--')
             
             ax.set_xlabel('Time (s)', fontsize=10)
-            ax.set_ylabel('Hamiltonian (Energy)', fontsize=10)
+            ax.set_ylabel('Kinetic Energy', fontsize=10)
             ax.set_title(f'{model_name} - Wave {row + 1}', fontsize=11)
             ax.grid(True, alpha=0.3)
     
     # Collect handles and labels from first row for unified legend
     handles, labels = axes[0, 0].get_legend_handles_labels()
     
-    plt.suptitle(f'Hamiltonian vs Time (σ = {sigma}) - Unified Harmonic Oscillator', 
+    plt.suptitle(f'Kinetic Energy vs Time (σ = {sigma}) - Newtonian (v=dq/dt)', 
                 fontsize=14, fontweight='bold')
     # Create unified legend outside the plot area
     fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.01), 
@@ -915,4 +911,4 @@ def plot_hamiltonian_vs_time_unified(
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
     
-    print(f"Saved Hamiltonian vs time (unified) plot to {save_path}")
+    print(f"Saved Kinetic Energy vs time (Newtonian) plot to {save_path}")

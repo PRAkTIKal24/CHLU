@@ -23,10 +23,8 @@ from chlu.utils.plotting import (
     plot_noise_heatmap,
     plot_phase_space,
     plot_sine_wave_comparison,
-    plot_multi_noise_grid,
-    plot_noise_heatmap,
-    plot_hamiltonian_vs_time,
-    plot_hamiltonian_vs_time_unified,
+    plot_kinetic_energy_vs_time,
+    plot_kinetic_energy_vs_time_unified,
 )
 
 
@@ -457,24 +455,24 @@ def run_experiment_b(
             sigma=float(mid_sigma),
         )
 
-        # Hamiltonian vs time (CHLU with learned H)
-        save_path_ham_learned = os.path.join(save_dir, "exp2_hamiltonian_learned.png")
-        plot_hamiltonian_vs_time(
+        # Kinetic Energy vs time (relativistic)
+        save_path_ke_learned = os.path.join(save_dir, "exp2_kinetic_energy_relativistic.png")
+        plot_kinetic_energy_vs_time(
             test_data,
             stored_predictions,
-            save_path_ham_learned,
+            save_path_ke_learned,
             chlu_model=chlu,
             dt=dt,
             n_examples=3,
             sigma=float(mid_sigma),
         )
 
-        # Hamiltonian vs time (unified harmonic oscillator)
-        save_path_ham_unified = os.path.join(save_dir, "exp2_hamiltonian_unified.png")
-        plot_hamiltonian_vs_time_unified(
+        # Kinetic Energy vs time (Newtonian from trajectory)
+        save_path_ke_unified = os.path.join(save_dir, "exp2_kinetic_energy_newtonian.png")
+        plot_kinetic_energy_vs_time_unified(
             test_data,
             stored_predictions,
-            save_path_ham_unified,
+            save_path_ke_unified,
             dt=dt,
             n_examples=3,
             sigma=float(mid_sigma),
@@ -490,6 +488,6 @@ def run_experiment_b(
     if stored_predictions is not None:
         print(f"  - {save_path_waves}")
         print(f"  - {save_path_phase}")
-        print(f"  - {save_path_ham_learned}")
-        print(f"  - {save_path_ham_unified}")
+        print(f"  - {save_path_ke_learned}")
+        print(f"  - {save_path_ke_unified}")
     print("=" * 60 + "\n")
