@@ -18,11 +18,11 @@ from chlu.training.train_baselines import train_lstm, train_neural_ode
 from chlu.utils.checkpoints import load_checkpoint, save_checkpoint
 from chlu.utils.metrics import compute_mse
 from chlu.utils.plotting import (
+    plot_multi_noise_grid,
     plot_noise_curves,
+    plot_noise_heatmap,
     plot_phase_space,
     plot_sine_wave_comparison,
-    plot_multi_noise_grid,
-    plot_noise_heatmap,
 )
 
 
@@ -142,7 +142,17 @@ def run_experiment_b(
     print(f"  CHLU kinetic mode: {kinetic_mode}")
     k2, k3, k4, k5 = jax.random.split(k2, 4)
 
-    chlu = CHLU(dim=chlu_dim, hidden=hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, kinetic_mode=kinetic_mode, key=k3)
+    print(f"  Rest mass: {config.model.rest_mass}")
+    print(f"  Speed of causality: {config.model.speed_of_causality}")
+
+    chlu = CHLU(
+        dim=chlu_dim,
+        hidden=hidden_dim,
+        rest_mass=config.model.rest_mass,
+        c=config.model.speed_of_causality,
+        kinetic_mode=kinetic_mode,
+        key=k3,
+    )
     node = NeuralODE(dim=node_dim, hidden=hidden_dim, key=k4)
     lstm = LSTMPredictor(dim=node_dim, hidden_size=hidden_dim, key=k5)
 
@@ -187,7 +197,14 @@ def run_experiment_b(
 
         # Save trained models
         print("\n  Saving trained models...")
-        save_checkpoint(chlu, chlu_path, epoch=train_epochs, loss=0.0, config=config, target_energy=target_energy)
+        save_checkpoint(
+            chlu,
+            chlu_path,
+            epoch=train_epochs,
+            loss=0.0,
+            config=config,
+            target_energy=target_energy,
+        )
         save_checkpoint(node, node_path, epoch=train_epochs, loss=0.0, config=config)
         save_checkpoint(
             lstm,
@@ -201,18 +218,20 @@ def run_experiment_b(
     # 3. Test across noise levels
     print(f"\n[3/4] Testing noise robustness ({n_sigma} noise levels)...")
     if use_governor and target_energy is not None:
-        print(f"  Using Active Governor (target_energy={target_energy:.4f}, sensitivity={governor_sensitivity})")
+        # Accomodate integration errors by slightly lowering target energy
+        target_energy = 0.99 * target_energy
+        print(
+            f"  Using Active Governor (target_energy={target_energy:.4f}, sensitivity={governor_sensitivity})"
+        )
     else:
-        print(f"  Using Fixed Friction Annealing (friction={sleep_friction}, ramp={friction_ramp})")
+        print(
+            f"  Using Fixed Friction Annealing (friction={sleep_friction}, ramp={friction_ramp})"
+        )
 
     sigmas = jnp.linspace(sigma_min, sigma_max, n_sigma)
-    
+
     # Store temporal errors for heatmap (per-timestep errors)
-    temporal_errors = {
-        'LSTM': [],
-        'NODE': [],
-        'CHLU': []
-    }
+    temporal_errors = {"LSTM": [], "NODE": [], "CHLU": []}
     mse_chlu, mse_node, mse_lstm = [], [], []
 
     # Store predictions for visualization (at low, middle, and high noise levels)
@@ -221,14 +240,14 @@ def run_experiment_b(
     mid_sigma_idx = n_sigma // 2
     high_sigma_idx = (3 * n_sigma) // 4
     mid_sigma = sigmas[mid_sigma_idx]
-    
+
     # Storage for multi-level grid plot
     multi_level_data = {
-        'sigmas': [],
-        'noisy_inputs': [],
-        'predictions': {'LSTM': [], 'NODE': [], 'CHLU': []}
+        "sigmas": [],
+        "noisy_inputs": [],
+        "predictions": {"LSTM": [], "NODE": [], "CHLU": []},
     }
-    
+
     # Storage for existing single-level plots (middle noise)
     stored_predictions = None
     stored_noisy_data = None
@@ -245,15 +264,15 @@ def run_experiment_b(
         if should_store_mid:
             stored_noisy_data = noisy_test
             stored_predictions = {"LSTM": [], "NODE": [], "CHLU": []}
-        
+
         # Store data for multi-level grid plot (low, mid, high)
         should_store_multi = i in [low_sigma_idx, mid_sigma_idx, high_sigma_idx]
         if should_store_multi:
-            multi_level_data['sigmas'].append(float(sigma))
-            multi_level_data['noisy_inputs'].append(noisy_test)
+            multi_level_data["sigmas"].append(float(sigma))
+            multi_level_data["noisy_inputs"].append(noisy_test)
             # Initialize prediction lists for this noise level
-            for model_name in ['LSTM', 'NODE', 'CHLU']:
-                multi_level_data['predictions'][model_name].append([])
+            for model_name in ["LSTM", "NODE", "CHLU"]:
+                multi_level_data["predictions"][model_name].append([])
 
         # Evaluate each model
         # For CHLU: run dynamics from noisy initial conditions
@@ -305,18 +324,18 @@ def run_experiment_b(
 
             # Compare against clean data
             errors_chlu.append(compute_mse(pred_traj, clean_seq))
-            
+
             # Compute per-timestep squared errors
             timestep_errors = jnp.mean((pred_traj - clean_seq) ** 2, axis=1)
             temporal_errors_chlu.append(timestep_errors)
 
             if should_store_mid:
                 stored_predictions["CHLU"].append(pred_traj)
-            
+
             if should_store_multi:
                 # Get the index in multi_level lists (0, 1, or 2)
                 multi_idx = [low_sigma_idx, mid_sigma_idx, high_sigma_idx].index(i)
-                multi_level_data['predictions']['CHLU'][multi_idx].append(pred_traj)
+                multi_level_data["predictions"]["CHLU"][multi_idx].append(pred_traj)
 
         # Neural ODE
         errors_node = []
@@ -325,17 +344,17 @@ def run_experiment_b(
             z0_noisy = noisy_test[j, 0]
             pred_traj = node(z0_noisy, (0.0, steps * dt), dt)
             errors_node.append(compute_mse(pred_traj, test_data[j]))
-            
+
             # Compute per-timestep squared errors
             timestep_errors = jnp.mean((pred_traj - test_data[j]) ** 2, axis=1)
             temporal_errors_node.append(timestep_errors)
 
             if should_store_mid:
                 stored_predictions["NODE"].append(pred_traj)
-            
+
             if should_store_multi:
                 multi_idx = [low_sigma_idx, mid_sigma_idx, high_sigma_idx].index(i)
-                multi_level_data['predictions']['NODE'][multi_idx].append(pred_traj)
+                multi_level_data["predictions"]["NODE"][multi_idx].append(pred_traj)
 
         # LSTM
         errors_lstm = []
@@ -344,26 +363,32 @@ def run_experiment_b(
             x0_noisy = noisy_test[j, 0]
             pred_traj = lstm.generate(x0_noisy, steps=steps)
             errors_lstm.append(compute_mse(pred_traj, test_data[j]))
-            
+
             # Compute per-timestep squared errors
             timestep_errors = jnp.mean((pred_traj - test_data[j]) ** 2, axis=1)
             temporal_errors_lstm.append(timestep_errors)
 
             if should_store_mid:
                 stored_predictions["LSTM"].append(pred_traj)
-            
+
             if should_store_multi:
                 multi_idx = [low_sigma_idx, mid_sigma_idx, high_sigma_idx].index(i)
-                multi_level_data['predictions']['LSTM'][multi_idx].append(pred_traj)
+                multi_level_data["predictions"]["LSTM"][multi_idx].append(pred_traj)
 
         mse_chlu.append(jnp.mean(jnp.array(errors_chlu)))
         mse_node.append(jnp.mean(jnp.array(errors_node)))
         mse_lstm.append(jnp.mean(jnp.array(errors_lstm)))
-        
+
         # Store mean temporal errors across all test samples for this noise level
-        temporal_errors['CHLU'].append(jnp.mean(jnp.array(temporal_errors_chlu), axis=0))
-        temporal_errors['NODE'].append(jnp.mean(jnp.array(temporal_errors_node), axis=0))
-        temporal_errors['LSTM'].append(jnp.mean(jnp.array(temporal_errors_lstm), axis=0))
+        temporal_errors["CHLU"].append(
+            jnp.mean(jnp.array(temporal_errors_chlu), axis=0)
+        )
+        temporal_errors["NODE"].append(
+            jnp.mean(jnp.array(temporal_errors_node), axis=0)
+        )
+        temporal_errors["LSTM"].append(
+            jnp.mean(jnp.array(temporal_errors_lstm), axis=0)
+        )
 
     # 4. Plot results
     print("\n[4/4] Creating visualizations...")
@@ -373,29 +398,31 @@ def run_experiment_b(
         "NODE": jnp.array(mse_node),
         "CHLU": jnp.array(mse_chlu),
     }
-    
+
     # Multi-level noise grid (NEW)
-    if len(multi_level_data['sigmas']) == 3:
+    if len(multi_level_data["sigmas"]) == 3:
         # Convert prediction lists to arrays
-        for model_name in ['LSTM', 'NODE', 'CHLU']:
+        for model_name in ["LSTM", "NODE", "CHLU"]:
             for idx in range(3):
-                multi_level_data['predictions'][model_name][idx] = jnp.array(
-                    multi_level_data['predictions'][model_name][idx]
+                multi_level_data["predictions"][model_name][idx] = jnp.array(
+                    multi_level_data["predictions"][model_name][idx]
                 )
-        
+
         save_path_grid = os.path.join(save_dir, "exp2_multi_noise_grid.png")
-        plot_multi_noise_grid(test_data, multi_level_data, save_path_grid, example_idx=0)
+        plot_multi_noise_grid(
+            test_data, multi_level_data, save_path_grid, example_idx=0
+        )
         print(f"  Saved multi-noise grid: {save_path_grid}")
 
     # Noise curve
     save_path = os.path.join(save_dir, "exp2_noise_curve.png")
     plot_noise_curves(sigmas, mse_dict, save_path)
-    
+
     # Noise heatmap
     # Convert temporal errors to arrays
-    for model_name in ['LSTM', 'NODE', 'CHLU']:
+    for model_name in ["LSTM", "NODE", "CHLU"]:
         temporal_errors[model_name] = jnp.array(temporal_errors[model_name])
-    
+
     save_path_heatmap = os.path.join(save_dir, "exp2_noise_heatmap.png")
     plot_noise_heatmap(sigmas, temporal_errors, save_path_heatmap)
 
@@ -431,7 +458,7 @@ def run_experiment_b(
     print("Results saved to:")
     print(f"  - {save_path}")
     print(f"  - {save_path_heatmap}")
-    if len(multi_level_data['sigmas']) == 3:
+    if len(multi_level_data["sigmas"]) == 3:
         print(f"  - {save_path_grid}")
     if stored_predictions is not None:
         print(f"  - {save_path_waves}")
