@@ -32,20 +32,20 @@ class TrainingConfig:
     batch_size: int = 32
     dt: float = 0.05
     buffer_capacity: int = 1024
-    
+
     # Dynamics training (Experiments A & B)
     lyapunov_lambda: float = 0.01
     sleep_steps: int = 500
     clamp_strength: float = 1000.0
     clamp_ramp: float = 0.5
     sleep_frequency: int = 5
-    
+
     # Generative training (Experiment C)
     reinit_prob: float = 0.05  # Probability of resetting chains to noise
     k_steps: int = 20  # Negative phase evolution steps
     clamp_outputs: bool = True  # Enable hard pixel clamping to [-1, 1]
     energy_weight: float = 1.0  # Weight for contrastive energy loss
-    
+
     # Friction (used differently: 0.0 for dynamics, 0.1 for generative)
     sleep_friction: float = 0.0
 
@@ -111,20 +111,20 @@ class ExperimentBConfig:
 class ExperimentCConfig:
     """Configuration for Experiment C: Dreaming/Generation."""
 
-    pca_dim: int = 64
-    train_epochs: int = 1000
+    pca_dim: int = 784
+    train_epochs: int = 100
     use_pretrained: bool = False  # Load pre-trained models if available
     kinetic_energy_mode: str = "relativistic"  # KE calculation mode
-    n_samples: int = 5000
-    dream_steps: int = 100
-    friction: float = 0.01
-    dt: float = 0.05
+    n_samples: int = 10000
+    dream_steps: int = 1000
+    friction: float = 0.1
+    dt: float = 0.1
     n_dreams: int = 64
-    hidden_dim: int = 64
+    hidden_dim: int = 512
     p_train_scale: float = 0.1
-    q_noise_scale: float = 2.0
-    p_noise_scale: float = 0.5
-    snapshot_steps: List[int] = field(default_factory=lambda: [0, 10, 30, 50, 70, 100])
+    q_noise_scale: float = 1.0
+    p_noise_scale: float = 0.1
+    snapshot_steps: List[int] = field(default_factory=lambda: [0, 200, 400, 600, 800])
 
 
 @dataclass
@@ -138,7 +138,7 @@ class DataConfig:
     sine_freq_max: float = 2.0
     sine_amp_min: float = 0.5
     sine_amp_max: float = 1.5
-    mnist_pca_dim: int = 64
+    mnist_pca_dim: int = 784
     train_test_split: float = 0.8
 
 
