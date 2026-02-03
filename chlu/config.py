@@ -24,19 +24,30 @@ class ModelConfig:
 
 @dataclass
 class TrainingConfig:
-    """Training hyperparameters."""
+    """Training hyperparameters for both dynamics and generative training."""
 
+    # Common parameters
     epochs: int = 1000
     learning_rate: float = 1e-3
     batch_size: int = 32
     dt: float = 0.05
+    buffer_capacity: int = 1024
+    
+    # Dynamics training (Experiments A & B)
     lyapunov_lambda: float = 0.01
     sleep_steps: int = 500
     clamp_strength: float = 1000.0
     clamp_ramp: float = 0.5
-    sleep_friction: float = 0.0
     sleep_frequency: int = 5
-    buffer_capacity: int = 1024
+    
+    # Generative training (Experiment C)
+    reinit_prob: float = 0.05  # Probability of resetting chains to noise
+    k_steps: int = 20  # Negative phase evolution steps
+    clamp_outputs: bool = True  # Enable hard pixel clamping to [-1, 1]
+    energy_weight: float = 1.0  # Weight for contrastive energy loss
+    
+    # Friction (used differently: 0.0 for dynamics, 0.1 for generative)
+    sleep_friction: float = 0.0
 
 
 @dataclass
