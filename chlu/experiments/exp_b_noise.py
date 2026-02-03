@@ -23,6 +23,10 @@ from chlu.utils.plotting import (
     plot_noise_heatmap,
     plot_phase_space,
     plot_sine_wave_comparison,
+    plot_multi_noise_grid,
+    plot_noise_heatmap,
+    plot_hamiltonian_vs_time,
+    plot_hamiltonian_vs_time_unified,
 )
 
 
@@ -453,6 +457,29 @@ def run_experiment_b(
             sigma=float(mid_sigma),
         )
 
+        # Hamiltonian vs time (CHLU with learned H)
+        save_path_ham_learned = os.path.join(save_dir, "exp2_hamiltonian_learned.png")
+        plot_hamiltonian_vs_time(
+            test_data,
+            stored_predictions,
+            save_path_ham_learned,
+            chlu_model=chlu,
+            dt=dt,
+            n_examples=3,
+            sigma=float(mid_sigma),
+        )
+
+        # Hamiltonian vs time (unified harmonic oscillator)
+        save_path_ham_unified = os.path.join(save_dir, "exp2_hamiltonian_unified.png")
+        plot_hamiltonian_vs_time_unified(
+            test_data,
+            stored_predictions,
+            save_path_ham_unified,
+            dt=dt,
+            n_examples=3,
+            sigma=float(mid_sigma),
+        )
+
     print("\n" + "=" * 60)
     print("EXPERIMENT B COMPLETE!")
     print("Results saved to:")
@@ -463,8 +490,6 @@ def run_experiment_b(
     if stored_predictions is not None:
         print(f"  - {save_path_waves}")
         print(f"  - {save_path_phase}")
-    print("=" * 60 + "\n")
-    if stored_predictions is not None:
-        print(f"  - {save_path_waves}")
-        print(f"  - {save_path_phase}")
+        print(f"  - {save_path_ham_learned}")
+        print(f"  - {save_path_ham_unified}")
     print("=" * 60 + "\n")
