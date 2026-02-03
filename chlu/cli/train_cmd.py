@@ -9,6 +9,7 @@ from ..project import ProjectManager
 from ..core.chlu_unit import CHLU
 from ..core.baselines import NeuralODE, LSTMPredictor
 from ..training.train import train_chlu as train_chlu_fn
+from ..training.train_generative import train_generative as train_generative_fn
 from ..training.train_baselines import train_neural_ode as train_node_fn
 from ..training.train_baselines import train_lstm as train_lstm_fn
 from ..data.figure8 import generate_figure8
@@ -123,13 +124,11 @@ def cmd_train_chlu(args):
             train_data = generate_sine_waves(k1, n_waves=100, steps=200, dt=config.training.dt)
             dim = 1
         elif args.data == 'mnist':
+            # For MNIST, use generative training (no trajectory format)
             train_imgs, _, _ = load_mnist_pca(dim=config.experiment_c.pca_dim)
-            # Convert to (q, p) format
-            n_train = len(train_imgs)
-            p_train = jax.random.normal(k1, (n_train, config.experiment_c.pca_dim)) * 0.1
-            train_data = jnp.concatenate([train_imgs, p_train], axis=-1)
-            train_data = train_data[:, None, :]  # Add time dimension
+            train_data = train_imgs  # Shape: (n_samples, pca_dim)
             dim = config.experiment_c.pca_dim
+            use_generative = True
         else:
             console.print(f"[red]Unknown dataset: {args.data}[/red]")
             return 1
@@ -139,23 +138,36 @@ def cmd_train_chlu(args):
         # Initialize model
         chlu = CHLU(dim=dim, hidden=config.model.hidden_dim, rest_mass=config.model.rest_mass, c=config.model.speed_of_causality, key=k2)
         
-        # Train model
+        # Train model (use generative training for MNIST)
         console.print("  Training...")
-        trained_model, losses, target_energy = train_chlu_fn(
-            chlu,
-            train_data,
-            key=k2,
-            config=config
-        )
+        if args.data == 'mnist':
+            console.print("  Using generative (PCD) training for MNIST...")
+            trained_model, losses, target_energy = train_generative_fn(
+                chlu,
+                train_data,
+                key=k2,
+                config=config
+            )
+            console.print(f"  Final wake loss: {losses['wake'][-1]:.6f}")
+            console.print(f"  Final sleep loss: {losses['sleep'][-1]:.6f}")
+            final_loss = losses['total'][-1]
+        else:
+            trained_model, losses, target_energy = train_chlu_fn(
+                chlu,
+                train_data,
+                key=k2,
+                config=config
+            )
+            console.print(f"  Final loss: {losses[-1]:.6f}")
+            final_loss = losses[-1]
         
-        console.print(f"  Final loss: {losses[-1]:.6f}")
         console.print(f"  Target energy: {target_energy:.6f}")
         
         # Save model
         model_name = create_checkpoint_name(
             f"chlu_{args.data}",
             epoch=config.training.epochs,
-            loss=losses[-1]
+            loss=final_loss
         )
         model_path = paths['models'] / model_name
         
@@ -163,7 +175,7 @@ def cmd_train_chlu(args):
             trained_model,
             model_path,
             epoch=config.training.epochs,
-            loss=losses[-1],
+            loss=final_loss,
             config=config,
             dataset=args.data,
             target_energy=target_energy
