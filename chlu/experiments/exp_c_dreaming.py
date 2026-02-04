@@ -192,6 +192,8 @@ def run_experiment_c(
     # 3. Generative Dreaming: Evolving from noise
     print(f"\n[3/4] Dreaming: evolving from noise ({dream_steps} steps)...")
 
+    # Ensure random key is properly initialized for both training and loading paths
+    k2, k3 = jax.random.split(k2)
     k3, k4, k5 = jax.random.split(k3, 3)
 
     # Initialize random noise states (Shared for both experiments)
