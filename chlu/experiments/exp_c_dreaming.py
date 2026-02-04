@@ -12,6 +12,7 @@ import numpy as np
 
 from chlu.config import CHLUConfig, get_default_config
 from chlu.core.chlu_unit import CHLU
+from chlu.core.integrators import get_temperature_schedule
 from chlu.data.mnist import load_mnist_pca
 from chlu.training.train_generative import train_generative
 from chlu.utils.checkpoints import load_checkpoint, save_checkpoint
@@ -104,6 +105,13 @@ def run_experiment_c(
     use_pretrained = config.experiment_c.use_pretrained
     kinetic_mode = config.experiment_c.kinetic_energy_mode
     potential_type = config.experiment_c.potential_type
+    
+    # Langevin dynamics parameters
+    temperature = config.experiment_c.temperature
+    temperature_annealing = config.experiment_c.temperature_annealing
+    temperature_start = config.experiment_c.temperature_start
+    temperature_end = config.experiment_c.temperature_end
+    annealing_schedule = config.experiment_c.annealing_schedule
 
     print("\n" + "=" * 60)
     print("EXPERIMENT C: Generative Dreaming (MNIST)")
@@ -195,41 +203,103 @@ def run_experiment_c(
     # Ensure they are within bounds of dream_steps
     snap_indices = jnp.array([t for t in snapshot_steps if t < dream_steps])
 
-    def run_dream_batch(gamma_val, desc):
-        print(f"  Running {desc} batch (gamma={gamma_val})...")
+    def run_dream_batch(gamma_val, temp_val, use_annealing, desc, dream_key):
+        """
+        Run dreaming with optional Langevin dynamics and temperature annealing.
+        
+        Args:
+            gamma_val: Friction coefficient
+            temp_val: Temperature (constant if not annealing)
+            use_annealing: Whether to apply temperature annealing schedule
+            desc: Description for logging
+            dream_key: JAX random key for stochastic evolution
+        
+        Returns:
+            (final_states, snapshots): Final states and snapshot evolution
+        """
+        print(f"  Running {desc} batch (gamma={gamma_val}, temp={temp_val}, annealing={use_annealing})...")
         batch_snapshots = []
         batch_final = []
+        
+        # Generate temperature schedule if annealing is enabled
+        if use_annealing and temp_val > 0:
+            temp_schedule = get_temperature_schedule(
+                temperature_start, temperature_end, dream_steps, annealing_schedule
+            )
+        else:
+            # Constant temperature
+            temp_schedule = None
 
         for i in range(n_dreams):
             q, p = q_noise[i], p_noise[i]
+            
+            # Split key for this dream
+            dream_key, subkey = jax.random.split(dream_key)
 
-            # 1. Run full physics (Fast JAX loop)
-            # trajectory shape: (dream_steps, 2*pca_dim)
-            trajectory = chlu(q, p, steps=dream_steps, dt=dt, gamma=gamma_val)
+            # Choose evolution method based on temperature
+            if temp_val > 0.0:
+                # Stochastic evolution with Langevin noise
+                if temp_schedule is not None:
+                    # Temperature annealing: need to manually step with varying temperature
+                    trajectory = []
+                    state = (q, p)
+                    for step_idx in range(dream_steps):
+                        subkey, step_key = jax.random.split(subkey)
+                        q_curr, p_curr, new_key = chlu.stochastic_step(
+                            state, dt, gamma_val, temp_schedule[step_idx], step_key
+                        )
+                        trajectory.append(jnp.concatenate([q_curr, p_curr]))
+                        state = (q_curr, p_curr)
+                        subkey = new_key
+                    trajectory = jnp.array(trajectory)
+                else:
+                    # Constant temperature: use stochastic_rollout
+                    trajectory = chlu.stochastic_rollout(
+                        q, p, dream_steps, dt, gamma_val, temp_val, subkey
+                    )
+            else:
+                # Deterministic evolution
+                trajectory = chlu(q, p, steps=dream_steps, dt=dt, gamma=gamma_val)
 
-            # 2. Extract Position (q)
+            # Extract Position (q)
             qs = trajectory[:, :pca_dim]
 
-            # 3. Extract Snapshots (Efficient slicing)
-            # This replaces your manual "if step in snapshot_steps" check
+            # Extract Snapshots
             snaps = qs[snap_indices]
             batch_snapshots.append(snaps)
 
-            # 4. Extract Final State (Ground State)
+            # Extract Final State
             batch_final.append(qs[-1])
 
-        return jnp.array(batch_final), jnp.array(batch_snapshots)
+        return jnp.array(batch_final), jnp.array(batch_snapshots), dream_key
 
     # Run experiments
     # EXPERIMENT A: The "Ghosts" (Conserved Energy)
     # gamma=0.0 : Physics mode. Particles orbit the concept.
-    final_states_ghosts, snaps_ghosts = run_dream_batch(0.0, "Ghost (No Friction)")
-
-    # EXPERIMENT B: The "Ground States" (Annealed)
-    # gamma=friction : Denoising mode. Particles fall into the well.
-    final_states_annealed, snaps_annealed = run_dream_batch(
-        friction, "Annealed (With Friction)"
+    final_states_ghosts, snaps_ghosts, k5 = run_dream_batch(
+        0.0, 0.0, False, "Ghost (No Friction)", k5
     )
+
+    # EXPERIMENT B: The "Ground States" (Annealed - Deterministic)
+    # gamma=friction : Denoising mode. Particles fall into the well.
+    final_states_annealed, snaps_annealed, k5 = run_dream_batch(
+        friction, 0.0, False, "Annealed (With Friction)", k5
+    )
+    
+    # EXPERIMENT C: Thermal Exploration (Optional - if temperature > 0)
+    # gamma=0, temperature>0: Particles explore via thermal noise without dissipation
+    if temperature > 0.0:
+        final_states_thermal, snaps_thermal, k5 = run_dream_batch(
+            0.0, temperature, False, "Thermal (No Friction, With Noise)", k5
+        )
+    
+    # EXPERIMENT D: Annealed Thermal (Optional - if temperature > 0 and friction > 0)
+    # gamma=friction, temperature with annealing: Simulated annealing to find modes
+    if temperature > 0.0 and friction > 0.0:
+        final_states_annealed_thermal, snaps_annealed_thermal, k5 = run_dream_batch(
+            friction, temperature, temperature_annealing, 
+            "Annealed Thermal (Friction + Noise + Cooling)", k5
+        )
 
     # 4. Visualize: Inverse PCA and Plot Side-by-Side
     print("\n[4/4] Creating visualization...")
@@ -254,6 +324,17 @@ def run_experiment_c(
     decode_and_plot(
         final_states_annealed, "exp3_annealed_final.png", "Annealed Digits (Final)"
     )
+    
+    # Plot thermal modes if enabled
+    if temperature > 0.0:
+        decode_and_plot(
+            final_states_thermal, "exp3_thermal_final.png", "Thermal Exploration (Final)"
+        )
+        if friction > 0.0:
+            decode_and_plot(
+                final_states_annealed_thermal, "exp3_annealed_thermal_final.png", 
+                "Annealed Thermal (Final)"
+            )
 
     # Plot evolution grids: 5 samples × time progression
     print(
@@ -296,6 +377,14 @@ def run_experiment_c(
 
     plot_evolution(snaps_ghosts, "exp3_ghosts_evolution.png", "Ghosts Evolution")
     plot_evolution(snaps_annealed, "exp3_annealed_evolution.png", "Annealed Evolution")
+    
+    if temperature > 0.0:
+        plot_evolution(snaps_thermal, "exp3_thermal_evolution.png", "Thermal Evolution")
+        if friction > 0.0:
+            plot_evolution(
+                snaps_annealed_thermal, "exp3_annealed_thermal_evolution.png", 
+                "Annealed Thermal Evolution"
+            )
 
     # Plot intermediate snapshots (all samples at each timestep)
     print(f"\n  Saving {len(snap_indices)} intermediate snapshots...")
@@ -316,6 +405,23 @@ def run_experiment_c(
                 f"exp3_annealed_step_{step_num:03d}.png",
                 f"Annealed at step {step_num}",
             )
+            
+            # Thermal modes if enabled
+            if temperature > 0.0:
+                thermal_at_step = snaps_thermal[:, snap_idx, :]
+                decode_and_plot(
+                    thermal_at_step,
+                    f"exp3_thermal_step_{step_num:03d}.png",
+                    f"Thermal at step {step_num}",
+                )
+                
+                if friction > 0.0:
+                    annealed_thermal_at_step = snaps_annealed_thermal[:, snap_idx, :]
+                    decode_and_plot(
+                        annealed_thermal_at_step,
+                        f"exp3_annealed_thermal_step_{step_num:03d}.png",
+                        f"Annealed Thermal at step {step_num}",
+                    )
 
     print("\n" + "=" * 60)
     print("EXPERIMENT C COMPLETE!")
