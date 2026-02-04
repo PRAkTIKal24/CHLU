@@ -166,4 +166,8 @@ class ConvPotential(eqx.Module):
         x = x.ravel()
         E = self.layers[3](x)
 
-        return jnp.squeeze(E)
+        # CRITICAL: Scale down by 100.0 to keep energies in reasonable range.
+        # The ConvPotential sums outputs of thousands of neurons.
+        # Without this scaling, energy magnitudes explode (e.g., -8000)
+        # and temperature/noise parameters become ineffective.
+        return jnp.squeeze(E) / 100.0
