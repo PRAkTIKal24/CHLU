@@ -21,7 +21,6 @@ import optax
 from tqdm import tqdm
 
 from chlu.config import CHLUConfig, get_default_config
-from chlu.training.losses import energy_loss
 from chlu.training.replay_buffer import ReplayBuffer
 
 
@@ -201,15 +200,22 @@ def train_generative(
             # Wake: Minimize energy of real data
             # "Push this '7' down the hill"
             p_real = jnp.zeros_like(x_real)  # Zero momentum for static images
-            loss_wake = energy_loss(model, x_real, p_real)
+            E_real = jax.vmap(model.H)(x_real, p_real)
+            loss_wake = jnp.mean(E_real)
 
             # Sleep: Maximize energy of fake/dream data
             # "Pull this random noise up the hill"
             # Negative sign because we maximize
-            loss_sleep = -energy_loss(model, q_fake, p_fake)
+            E_fake = jax.vmap(model.H)(q_fake, p_fake)
+            loss_sleep = -jnp.mean(E_fake)
 
-            # Total contrastive loss
-            total_loss = loss_wake + energy_weight * loss_sleep
+            # Energy Regularization: Keep energies in reasonable range [-10, 10]
+            # Without this, energy explodes to -8000 and temperature/noise becomes useless.
+            # Penalizes the model for outputting massive energy magnitudes.
+            loss_reg = 0.01 * (jnp.mean(E_real**2) + jnp.mean(E_fake**2))
+
+            # Total contrastive loss with regularization
+            total_loss = loss_wake + energy_weight * loss_sleep + loss_reg
 
             return total_loss, (loss_wake, loss_sleep)
 
