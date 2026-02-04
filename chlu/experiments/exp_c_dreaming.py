@@ -30,6 +30,7 @@ def run_experiment_c(
     dream_steps: Optional[int] = None,
     friction: Optional[float] = None,
     dt: Optional[float] = None,
+    potential_type: Optional[str] = None,
 ):
     """
     Experiment C: Generative "Dreaming" (MNIST).
@@ -57,6 +58,7 @@ def run_experiment_c(
         dream_steps: Steps to evolve during dreaming (overrides config)
         friction: Friction coefficient for energy dissipation (overrides config)
         dt: Time step (overrides config)
+        potential_type: Potential network type: 'mlp', 'deep_mlp', 'conv' (overrides config)
     """
     # Load config with overrides
     if config is None:
@@ -80,6 +82,8 @@ def run_experiment_c(
         config.experiment_c.dt = dt
     if use_pretrained is not None:
         config.experiment_c.use_pretrained = use_pretrained
+    if potential_type is not None:
+        config.experiment_c.potential_type = potential_type
 
     # Extract values from config
     save_dir = config.project.save_dir or "results/"
@@ -99,6 +103,7 @@ def run_experiment_c(
     snapshot_steps = config.experiment_c.snapshot_steps
     use_pretrained = config.experiment_c.use_pretrained
     kinetic_mode = config.experiment_c.kinetic_energy_mode
+    potential_type = config.experiment_c.potential_type
 
     print("\n" + "=" * 60)
     print("EXPERIMENT C: Generative Dreaming (MNIST)")
@@ -125,14 +130,14 @@ def run_experiment_c(
     # 2. Initialize model
     k1, k2 = jax.random.split(key)
     print(f"  CHLU kinetic mode: {kinetic_mode}")
-    print("  Using DeepPotentialMLP for high-dimensional MNIST")
+    print(f"  Potential type: {potential_type}")
     chlu = CHLU(
         dim=pca_dim,
         hidden=hidden_dim,
         rest_mass=config.model.rest_mass,
         c=config.model.speed_of_causality,
         kinetic_mode=kinetic_mode,
-        use_deep_potential=True,  # Use high-capacity network for MNIST
+        potential_type=potential_type,
         key=k2,
     )
 

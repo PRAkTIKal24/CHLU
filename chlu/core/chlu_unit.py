@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from chlu.core.integrators import velocity_verlet_step
-from chlu.core.potentials import PotentialMLP, DeepPotentialMLP
+from chlu.core.potentials import PotentialMLP, DeepPotentialMLP, ConvPotential
 
 
 class CHLU(eqx.Module):
@@ -24,7 +24,7 @@ class CHLU(eqx.Module):
         - V(q): learnable potential function (MLP)
     """
 
-    potential_net: eqx.Module  # PotentialMLP or DeepPotentialMLP
+    potential_net: eqx.Module  # PotentialMLP, DeepPotentialMLP, or ConvPotential
     log_mass: jnp.ndarray  # Log-parameterized for positivity
     rest_mass: float = eqx.field(static=True)
     c: float = eqx.field(static=True)  # Speed of causality
@@ -32,7 +32,7 @@ class CHLU(eqx.Module):
     kinetic_mode: str = eqx.field(
         static=True
     )  # "newtonian_identity", "newtonian_learned", "relativistic"
-    use_deep_potential: bool = eqx.field(static=True)  # Use DeepPotentialMLP for high-dim
+    potential_type: str = eqx.field(static=True)  # "mlp", "deep_mlp", "conv"
 
     def __init__(
         self,
@@ -41,7 +41,7 @@ class CHLU(eqx.Module):
         rest_mass: float = 1.0,
         c: float = 1.0,
         kinetic_mode: str = "newtonian_identity",
-        use_deep_potential: bool = False,
+        potential_type: str = "mlp",
         key: jax.random.PRNGKey = None,
     ):
         """
@@ -54,7 +54,8 @@ class CHLU(eqx.Module):
             c: Speed of causality (default: 1.0)
             kinetic_mode: Kinetic energy calculation mode (default: "newtonian_identity")
                          Options: "newtonian_identity", "newtonian_learned", "relativistic"
-            use_deep_potential: Use DeepPotentialMLP (1024 hidden) for high-dim data like MNIST
+            potential_type: Potential network architecture (default: "mlp")
+                           Options: "mlp" (standard), "deep_mlp" (high-capacity), "conv" (convolutional)
             key: JAX random key
         """
         if key is None:
@@ -66,15 +67,27 @@ class CHLU(eqx.Module):
         self.rest_mass = rest_mass
         self.c = c
         self.kinetic_mode = kinetic_mode
-        self.use_deep_potential = use_deep_potential
+        self.potential_type = potential_type
 
-        # Initialize potential network (choose based on use_deep_potential flag)
-        if use_deep_potential:
-            # High-capacity network for MNIST/high-dimensional data
+        # Initialize potential network based on potential_type
+        if potential_type == "conv":
+            # Convolutional network for spatial structure (MNIST images)
+            if dim != 784:
+                raise ValueError(
+                    f"ConvPotential requires dim=784 (28x28 images), got dim={dim}"
+                )
+            self.potential_net = ConvPotential(key=k1)
+        elif potential_type == "deep_mlp":
+            # High-capacity MLP for high-dimensional data
             self.potential_net = DeepPotentialMLP(dim, hidden, key=k1)
-        else:
-            # Standard network for low-dimensional dynamics
+        elif potential_type == "mlp":
+            # Standard MLP for low-dimensional dynamics
             self.potential_net = PotentialMLP(dim, hidden, key=k1)
+        else:
+            raise ValueError(
+                f"Unknown potential_type: {potential_type}. "
+                f"Must be 'mlp', 'deep_mlp', or 'conv'."
+            )
 
         # Initialize log mass (use log for positive-definiteness via softplus)
         self.log_mass = jax.random.normal(k2, (dim,)) * 0.1

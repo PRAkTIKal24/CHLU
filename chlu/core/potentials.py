@@ -111,3 +111,59 @@ class DeepPotentialMLP(eqx.Module):
         # We rely on L2 Regularization in the loss for stability.
 
         return v_n
+
+
+class ConvPotential(eqx.Module):
+    """
+    Convolutional Potential for MNIST.
+    Learns 'Local Physics' (edges, strokes) instead of 'Global Pixels'.
+    Architecture: Conv layers to detect edges -> strokes -> curves -> digits -> scalar energy
+    """
+
+    layers: list
+
+    def __init__(self, key: jax.random.PRNGKey):
+        """
+        Initialize convolutional potential network.
+        
+        Args:
+            key: JAX random key for initialization
+        """
+        k1, k2, k3, k4 = jax.random.split(key, 4)
+
+        self.layers = [
+            # Layer 1: Detect Edges (Strokes)
+            # Input: 1 channel (Greyscale), Output: 16 Features
+            eqx.nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1, key=k1),
+            # Layer 2: Assemble Strokes into Curves
+            eqx.nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1, key=k2),
+            # Layer 3: Assemble Curves into Digits
+            eqx.nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1, key=k3),
+            # Layer 4: Global Energy Assessment
+            # Flatten -> Linear -> Scalar Energy
+            eqx.nn.Linear(64 * 4 * 4, 1, key=k4),
+        ]
+
+    def __call__(self, q: jnp.ndarray) -> float:
+        """
+        Compute potential energy V(q) from image pixels.
+        
+        Args:
+            q: Flattened image vector (784,)
+            
+        Returns:
+            Scalar potential energy
+        """
+        # Reshape flat 784 -> Image (1, 28, 28)
+        x = q.reshape(1, 28, 28)
+
+        # Conv Operations with Swish (Smooth Physics)
+        x = jnn.swish(self.layers[0](x))  # -> 14x14x16
+        x = jnn.swish(self.layers[1](x))  # -> 7x7x32
+        x = jnn.swish(self.layers[2](x))  # -> 4x4x64
+
+        # Flatten and Project to Energy
+        x = x.ravel()
+        E = self.layers[3](x)
+
+        return jnp.squeeze(E)
