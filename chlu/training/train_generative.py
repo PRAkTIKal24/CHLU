@@ -40,6 +40,7 @@ def train_generative(
     clamp_outputs: Optional[bool] = None,
     energy_weight: Optional[float] = None,
     sleep_friction: Optional[float] = None,
+    sleep_temperature: Optional[float] = None,
 ):
     """
     Train CHLU as an Energy-Based Model using Persistent Contrastive Divergence.
@@ -66,6 +67,7 @@ def train_generative(
         clamp_outputs: Enable pixel clamping to [-1, 1] (overrides config)
         energy_weight: Weight for contrastive energy loss (overrides config)
         sleep_friction: Friction during negative phase (overrides config)
+        sleep_temperature: Temperature for Langevin noise during sleep phase (overrides config)
 
     Returns:
         (trained_model, losses): Trained model and loss history dict
@@ -95,6 +97,8 @@ def train_generative(
         energy_weight = config.training.energy_weight
     if sleep_friction is None:
         sleep_friction = config.experiment_c.friction
+    if sleep_temperature is None:
+        sleep_temperature = config.training.sleep_temperature
 
     # Handle data shape
     if data.ndim == 1:
@@ -151,17 +155,42 @@ def train_generative(
         p_start = jnp.where(mask[:, None], p_noise, p_start)
 
         # 3. Run physics for k steps
-        def evolve_single(q, p):
-            """Evolve a single (q, p) state for k steps."""
+        if sleep_temperature > 0.0:
+            # Stochastic evolution with Langevin noise
+            # Split key for each particle in batch
+            key, *subkeys = jax.random.split(key, x_real.shape[0] + 1)
+            subkeys = jnp.array(subkeys)
 
-            def step_fn(state, _):
-                return model.step(state, dt=dt, gamma=sleep_friction), None
+            def evolve_single(q, p, particle_key):
+                """Evolve a single (q, p) state for k steps with noise."""
+                def step_fn(carry, _):
+                    state, key_state = carry
+                    q_s, p_s = state
+                    q_next, p_next, new_key = model.stochastic_step(
+                        (q_s, p_s), dt=dt, gamma=sleep_friction,
+                        temperature=sleep_temperature, key=key_state
+                    )
+                    return ((q_next, p_next), new_key), None
 
-            state = (q, p)
-            final_state, _ = jax.lax.scan(step_fn, state, None, length=k_steps)
-            return final_state
+                state = (q, p)
+                (final_state, _), _ = jax.lax.scan(
+                    step_fn, (state, particle_key), None, length=k_steps
+                )
+                return final_state
 
-        q_fake, p_fake = jax.vmap(evolve_single)(q_start, p_start)
+            q_fake, p_fake = jax.vmap(evolve_single)(q_start, p_start, subkeys)
+        else:
+            # Deterministic evolution
+            def evolve_single(q, p):
+                """Evolve a single (q, p) state for k steps."""
+                def step_fn(state, _):
+                    return model.step(state, dt=dt, gamma=sleep_friction), None
+
+                state = (q, p)
+                final_state, _ = jax.lax.scan(step_fn, state, None, length=k_steps)
+                return final_state
+
+            q_fake, p_fake = jax.vmap(evolve_single)(q_start, p_start)
 
         # 4. Pixel clamping (critical for bounded spaces like images)
         if clamp_outputs:
@@ -199,7 +228,7 @@ def train_generative(
     print(f"Training generative model for {epochs} epochs...")
     print(f"Buffer capacity: {buffer_capacity}, Batch size: {batch_size}")
     print(
-        f"Re-init prob: {reinit_prob}, K-steps: {k_steps}, Friction: {sleep_friction}"
+        f"Re-init prob: {reinit_prob}, K-steps: {k_steps}, Friction: {sleep_friction}, Temperature: {sleep_temperature}"
     )
 
     for _epoch in tqdm(range(epochs), desc="Training (Generative)"):
