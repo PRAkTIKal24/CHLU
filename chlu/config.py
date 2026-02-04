@@ -199,7 +199,22 @@ def load_config(path: Path) -> CHLUConfig:
         if not data_dict:
             return {}
         valid_fields = {f.name for f in config_class.__dataclass_fields__.values()}
-        return {k: v for k, v in data_dict.items() if k in valid_fields}
+        filtered = {}
+        for k, v in data_dict.items():
+            if k in valid_fields:
+                # Convert string numbers (including scientific notation) to proper types
+                if isinstance(v, str):
+                    try:
+                        # Try int first (for whole numbers), then float
+                        if '.' not in v and 'e' not in v.lower():
+                            filtered[k] = int(v)
+                        else:
+                            filtered[k] = float(v)
+                    except (ValueError, TypeError):
+                        filtered[k] = v
+                else:
+                    filtered[k] = v
+        return filtered
 
     # Reconstruct nested dataclasses with field filtering
     config = CHLUConfig(
