@@ -94,12 +94,7 @@ def train_generative(
     if energy_weight is None:
         energy_weight = config.training.energy_weight
     if sleep_friction is None:
-        # Default to 0.1 for generative training (vs 0.0 for dynamics)
-        sleep_friction = (
-            0.1
-            if config.training.sleep_friction == 0.0
-            else config.training.sleep_friction
-        )
+        sleep_friction = config.experiment_c.friction
 
     # Handle data shape
     if data.ndim == 1:
