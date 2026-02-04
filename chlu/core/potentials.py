@@ -125,7 +125,7 @@ class ConvPotential(eqx.Module):
     def __init__(self, key: jax.random.PRNGKey):
         """
         Initialize convolutional potential network.
-        
+
         Args:
             key: JAX random key for initialization
         """
@@ -134,23 +134,23 @@ class ConvPotential(eqx.Module):
         self.layers = [
             # Layer 1: Detect Edges (Strokes)
             # Input: 1 channel (Greyscale), Output: 16 Features
-            eqx.nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1, key=k1),
+            eqx.nn.Conv2d(1, 16, kernel_size=4, stride=2, padding=1, key=k1),
             # Layer 2: Assemble Strokes into Curves
-            eqx.nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1, key=k2),
+            eqx.nn.Conv2d(16, 32, kernel_size=4, stride=2, padding=1, key=k2),
             # Layer 3: Assemble Curves into Digits
-            eqx.nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1, key=k3),
+            eqx.nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1, key=k3),
             # Layer 4: Global Energy Assessment
             # Flatten -> Linear -> Scalar Energy
-            eqx.nn.Linear(64 * 4 * 4, 1, key=k4),
+            eqx.nn.Linear(64 * 3 * 3, 1, key=k4),
         ]
 
     def __call__(self, q: jnp.ndarray) -> float:
         """
         Compute potential energy V(q) from image pixels.
-        
+
         Args:
             q: Flattened image vector (784,)
-            
+
         Returns:
             Scalar potential energy
         """
