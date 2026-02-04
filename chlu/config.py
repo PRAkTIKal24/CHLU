@@ -115,6 +115,7 @@ class ExperimentCConfig:
     train_epochs: int = 100
     use_pretrained: bool = False  # Load pre-trained models if available
     kinetic_energy_mode: str = "relativistic"  # KE calculation mode
+    potential_type: str = "conv"  # Potential network type: 'mlp', 'deep_mlp', 'conv'
     n_samples: int = 10000
     dream_steps: int = 1000
     friction: float = 0.1
