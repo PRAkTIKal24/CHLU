@@ -4,7 +4,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from chlu.core.integrators import velocity_verlet_step
+from chlu.core.integrators import velocity_verlet_step, langevin_step
 from chlu.core.potentials import PotentialMLP, DeepPotentialMLP, ConvPotential
 
 
@@ -160,6 +160,34 @@ class CHLU(eqx.Module):
         q, p = state
         return velocity_verlet_step(self.H, q, p, dt, gamma)
 
+    def stochastic_step(
+        self,
+        state: tuple,
+        dt: float,
+        gamma: float,
+        temperature: float,
+        key: jax.random.PRNGKey,
+    ) -> tuple:
+        """
+        Single stochastic time step using Langevin dynamics.
+
+        Adds temperature-scaled Gaussian noise to enable exploration of the
+        energy landscape. The system can escape local minima and discover
+        multiple modes in the distribution.
+
+        Args:
+            state: (q, p) tuple
+            dt: Time step
+            gamma: Friction coefficient (required for temperature to have effect)
+            temperature: Temperature parameter (0 = deterministic, >0 = stochastic)
+            key: JAX random key for reproducible noise generation
+
+        Returns:
+            (q_next, p_next, new_key): Updated state and split key
+        """
+        q, p = state
+        return langevin_step(self.H, q, p, dt, gamma, temperature, key)
+
     def __call__(
         self,
         q0: jnp.ndarray,
@@ -251,3 +279,46 @@ class CHLU(eqx.Module):
         # Prepend initial condition to match LSTM/NODE behavior
         initial_state = jnp.concatenate([q0, p0])[None, :]
         return jnp.concatenate([initial_state, trajectory], axis=0)
+
+    def stochastic_rollout(
+        self,
+        q0: jnp.ndarray,
+        p0: jnp.ndarray,
+        steps: int,
+        dt: float,
+        gamma: float,
+        temperature: float,
+        key: jax.random.PRNGKey,
+    ) -> jnp.ndarray:
+        """
+        Unroll stochastic trajectory using Langevin dynamics.
+
+        This method uses jax.lax.scan for efficiency while properly threading
+        the random key through each step to ensure reproducible stochastic behavior.
+
+        Args:
+            q0: Initial position (dim,)
+            p0: Initial momentum (dim,)
+            steps: Number of time steps
+            dt: Time step size
+            gamma: Friction coefficient
+            temperature: Temperature parameter for thermal noise
+            key: JAX random key for reproducible stochastic evolution
+
+        Returns:
+            Trajectory of shape (steps, 2*dim) where each row is [q, p]
+        """
+
+        def scan_fn(carry, _):
+            q, p, key_state = carry
+            q_next, p_next, new_key = self.stochastic_step(
+                (q, p), dt, gamma, temperature, key_state
+            )
+            # Concatenate q and p for output
+            output = jnp.concatenate([q_next, p_next])
+            return (q_next, p_next, new_key), output
+
+        # Run scan with key threading
+        _, trajectory = jax.lax.scan(scan_fn, (q0, p0, key), None, length=steps)
+
+        return trajectory
