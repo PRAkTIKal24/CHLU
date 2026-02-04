@@ -49,6 +49,9 @@ class TrainingConfig:
     # Friction (used differently: 0.0 for dynamics, 0.1 for generative)
     sleep_friction: float = 0.0
 
+    # Langevin dynamics (temperature-based noise for exploration)
+    sleep_temperature: float = 0.0  # Temperature for sleep phase (0.0 = deterministic)
+
 
 @dataclass
 class ExperimentAConfig:
@@ -126,6 +129,13 @@ class ExperimentCConfig:
     q_noise_scale: float = 1.0
     p_noise_scale: float = 0.1
     snapshot_steps: List[int] = field(default_factory=lambda: [0, 200, 400, 600, 800])
+
+    # Langevin dynamics parameters
+    temperature: float = 0.0  # Base temperature for dreaming (0.0 = deterministic)
+    temperature_annealing: bool = False  # Enable temperature annealing (cooling)
+    temperature_start: float = 1.0  # Starting temperature for annealing
+    temperature_end: float = 0.01  # Ending temperature for annealing
+    annealing_schedule: str = "exponential"  # Annealing schedule type: 'exponential' or 'linear'
 
 
 @dataclass
