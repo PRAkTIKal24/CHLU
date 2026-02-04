@@ -46,6 +46,7 @@ def train_chlu(
     batch_size: Optional[int] = None,
     dt: Optional[float] = None,
     window_size: Optional[int] = None,
+    sleep_temperature: Optional[float] = None,
 ):
     """
     Train CHLU using Persistent Contrastive Divergence (Wake-Sleep).
@@ -66,6 +67,7 @@ def train_chlu(
         batch_size: Batch size for sleep phase (overrides config)
         dt: Time step for dynamics (overrides config)
         window_size: Window size for sub-sequence sampling (overrides config)
+        sleep_temperature: Temperature for Langevin noise during sleep phase (overrides config)
 
     Returns:
         (trained_model, losses): Trained model and loss history
@@ -100,6 +102,8 @@ def train_chlu(
 
     sleep_frequency = config.training.sleep_frequency
     sleep_friction = config.training.sleep_friction
+    if sleep_temperature is None:
+        sleep_temperature = config.training.sleep_temperature
     clamp_strength = jnp.array(config.training.clamp_strength)
     clamp_ramp = config.training.clamp_ramp
 
@@ -162,22 +166,50 @@ def train_chlu(
         return model, opt_state, loss
 
     @eqx.filter_jit
-    def sleep_step(model, opt_state, buffer, key, sleep_friction=0.0):
+    def sleep_step(model, opt_state, buffer, key, sleep_friction=0.0, sleep_temperature=0.0):
         """Sleep phase: energy minimization."""
         # Sample from buffer
-        q_batch, p_batch, indices = buffer.sample(key, batch_size)
+        key, subkey = jax.random.split(key)
+        q_batch, p_batch, indices = buffer.sample(subkey, batch_size)
 
         def loss_fn(model):
             # Evolve states for k steps using scan to avoid slow compilation
-            def evolve_single(q, p):
-                def step_fn(state, _):
-                    return model.step(state, dt, gamma=sleep_friction), None
+            if sleep_temperature > 0.0:
+                # Stochastic evolution with Langevin noise
+                # Split key for each particle in batch
+                nonlocal key
+                key, *particle_keys = jax.random.split(key, batch_size + 1)
+                particle_keys = jnp.array(particle_keys)
 
-                state = (q, p)
-                final_state, _ = jax.lax.scan(step_fn, state, None, length=sleep_steps)
-                return final_state
+                def evolve_single(q, p, particle_key):
+                    """Evolve a single (q, p) state for k steps with noise."""
+                    def step_fn(carry, _):
+                        state, key_state = carry
+                        q_s, p_s = state
+                        q_next, p_next, new_key = model.stochastic_step(
+                            (q_s, p_s), dt=dt, gamma=sleep_friction,
+                            temperature=sleep_temperature, key=key_state
+                        )
+                        return ((q_next, p_next), new_key), None
 
-            q_evolved, p_evolved = jax.vmap(evolve_single)(q_batch, p_batch)
+                    state = (q, p)
+                    (final_state, _), _ = jax.lax.scan(
+                        step_fn, (state, particle_key), None, length=sleep_steps
+                    )
+                    return final_state
+
+                q_evolved, p_evolved = jax.vmap(evolve_single)(q_batch, p_batch, particle_keys)
+            else:
+                # Deterministic evolution
+                def evolve_single(q, p):
+                    def step_fn(state, _):
+                        return model.step(state, dt, gamma=sleep_friction), None
+
+                    state = (q, p)
+                    final_state, _ = jax.lax.scan(step_fn, state, None, length=sleep_steps)
+                    return final_state
+
+                q_evolved, p_evolved = jax.vmap(evolve_single)(q_batch, p_batch)
 
             # Negative sign because we want to *maximize* sleep energy
             sleep_energy = -energy_loss(model, q_evolved, p_evolved)
@@ -227,6 +259,7 @@ def train_chlu(
                 buffer,
                 k6,
                 sleep_friction,
+                sleep_temperature,
             )
 
         losses.append(float(wake_loss))
