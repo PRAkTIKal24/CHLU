@@ -169,7 +169,11 @@ def plot_dreaming_grid(
     n_images = min(len(images), n_rows * n_cols)
     
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 1.5, n_rows * 1.5))
-    axes = axes.flatten()
+    # Handle case where axes is a single Axes object (when n_rows=1 and n_cols=1)
+    if n_rows == 1 and n_cols == 1:
+        axes = np.array([axes])
+    else:
+        axes = axes.flatten()
     
     for i in range(n_images):
         axes[i].imshow(images[i], cmap='gray', vmin=0, vmax=255)
