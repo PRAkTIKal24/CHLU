@@ -108,11 +108,13 @@ def langevin_step(
     # Add Langevin thermal noise
     # Fluctuation-dissipation theorem: noise_scale = sqrt(2 * gamma * kT * dt)
     # (Here temperature already includes Boltzmann constant k)
-    if temperature > 0.0:
-        key, subkey = jax.random.split(key)
-        noise_scale = jnp.sqrt(2.0 * gamma * temperature * dt)
-        noise = jax.random.normal(subkey, p.shape) * noise_scale
-        p_next = p_next + noise
+    # Always split key and compute noise, but use jnp.where to conditionally apply
+    # This ensures the function is traceable in JAX (no Python conditionals on traced values)
+    key, subkey = jax.random.split(key)
+    noise_scale = jnp.sqrt(jnp.maximum(0.0, 2.0 * gamma * temperature * dt))
+    noise = jax.random.normal(subkey, p.shape) * noise_scale
+    # Apply noise only if temperature > 0 (using jnp.where for traceability)
+    p_next = jnp.where(temperature > 0.0, p_next + noise, p_next)
 
     return q_next, p_next, key
 
