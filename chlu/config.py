@@ -137,6 +137,10 @@ class ExperimentCConfig:
     temperature_end: float = 0.01  # Ending temperature for annealing
     annealing_schedule: str = "exponential"  # Annealing schedule type: 'exponential' or 'linear'
 
+    # Initialization mode parameters
+    init_mode: str = "random"  # Initialization mode: 'random' or 'centroid'
+    centroid_noise_scale: float = 0.5  # Gaussian perturbation scale when using centroid init
+
 
 @dataclass
 class DataConfig:
