@@ -32,6 +32,8 @@ def run_experiment_c(
     friction: Optional[float] = None,
     dt: Optional[float] = None,
     potential_type: Optional[str] = None,
+    init_mode: Optional[str] = None,
+    centroid_noise_scale: Optional[float] = None,
 ):
     """
     Experiment C: Generative "Dreaming" (MNIST).
@@ -60,6 +62,8 @@ def run_experiment_c(
         friction: Friction coefficient for energy dissipation (overrides config)
         dt: Time step (overrides config)
         potential_type: Potential network type: 'mlp', 'deep_mlp', 'conv' (overrides config)
+        init_mode: Initialization mode: 'random' or 'centroid' (overrides config)
+        centroid_noise_scale: Gaussian perturbation scale when using centroid init (overrides config)
     """
     # Load config with overrides
     if config is None:
@@ -85,6 +89,10 @@ def run_experiment_c(
         config.experiment_c.use_pretrained = use_pretrained
     if potential_type is not None:
         config.experiment_c.potential_type = potential_type
+    if init_mode is not None:
+        config.experiment_c.init_mode = init_mode
+    if centroid_noise_scale is not None:
+        config.experiment_c.centroid_noise_scale = centroid_noise_scale
 
     # Extract values from config
     save_dir = config.project.save_dir or "results/"
@@ -112,6 +120,8 @@ def run_experiment_c(
     temperature_start = config.experiment_c.temperature_start
     temperature_end = config.experiment_c.temperature_end
     annealing_schedule = config.experiment_c.annealing_schedule
+    init_mode = config.experiment_c.init_mode
+    centroid_noise_scale = config.experiment_c.centroid_noise_scale
 
     print("\n" + "=" * 60)
     print("EXPERIMENT C: Generative Dreaming (MNIST)")
@@ -130,6 +140,41 @@ def run_experiment_c(
         print(f"  PCA explained variance: {pca.explained_variance_ratio_.sum():.2%}")
     else:
         print(f"  PCA: Disabled (using raw {pca_dim}-dim pixel data)")
+
+    # Compute dataset centroid for initialization (if using centroid mode)
+    dataset_centroid = None
+    if init_mode == "centroid":
+        print(f"\n  Computing dataset centroid for initialization...")
+        # Load raw MNIST to compute pixel-space centroid
+        from sklearn.datasets import fetch_openml
+        mnist_raw = fetch_openml('mnist_784', version=1, as_frame=False, parser='auto')
+        X_raw = np.array(mnist_raw.data[:n_samples], dtype=np.float32)
+        X_raw = (X_raw / 127.5) - 1.0  # Normalize to [-1, 1]
+        
+        # Compute centroid in pixel space
+        centroid_raw = np.mean(X_raw, axis=0)  # Shape: (784,)
+        
+        # Transform to PCA space if PCA is enabled
+        if pca is not None:
+            dataset_centroid = pca.transform(centroid_raw.reshape(1, -1))[0]  # Shape: (pca_dim,)
+        else:
+            dataset_centroid = centroid_raw  # Already in pixel space
+        
+        dataset_centroid = jnp.array(dataset_centroid)
+        print(f"  Centroid shape: {dataset_centroid.shape}")
+        print(f"  Centroid stats: mean={float(jnp.mean(dataset_centroid)):.3f}, std={float(jnp.std(dataset_centroid)):.3f}")
+        
+        # Visualize the centroid (pure, before noise)
+        centroid_img = centroid_raw.reshape(28, 28)
+        centroid_path = os.path.join(save_dir, "exp3_centroid.png")
+        plot_dreaming_grid(
+            np.array([centroid_img]), 
+            centroid_path, 
+            n_rows=1, 
+            n_cols=1, 
+            image_shape=(28, 28)
+        )
+        print(f"  Saved pure centroid visualization to {centroid_path}")
 
     # For generative training, we only need position data (no trajectory format)
     # train_data is already in the right format: (n_samples, pca_dim)
@@ -196,10 +241,20 @@ def run_experiment_c(
     k2, k3 = jax.random.split(k2)
     k3, k4, k5 = jax.random.split(k3, 3)
 
-    # Initialize random noise states (Shared for both experiments)
-    # We use the same noise to show the direct effect of friction on the SAME starting point
-    q_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * q_noise_scale
-    p_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * p_noise_scale
+    # Initialize states based on initialization mode
+    print(f"\n  Initialization mode: {init_mode}")
+    if init_mode == "centroid":
+        # Centroid initialization: start from dataset mean + Gaussian noise
+        print(f"  Using centroid + Gaussian noise (scale={centroid_noise_scale})")
+        q_noise = jnp.tile(dataset_centroid, (n_dreams, 1))  # Replicate centroid
+        q_noise = q_noise + jax.random.normal(k4, (n_dreams, pca_dim)) * centroid_noise_scale
+    else:
+        # Random initialization: pure Gaussian noise
+        print(f"  Using random Gaussian noise (scale={q_noise_scale})")
+        q_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * q_noise_scale
+    
+    # Initialize momentum (always random, using separate key)
+    p_noise = jax.random.normal(k5, (n_dreams, pca_dim)) * p_noise_scale
 
     # Convert config list to a JAX array for indexing
     # Ensure they are within bounds of dream_steps
