@@ -305,24 +305,11 @@ def run_experiment_c(
             # Choose evolution method based on temperature
             if temp_val > 0.0:
                 # Stochastic evolution with Langevin noise
-                if temp_schedule is not None:
-                    # Temperature annealing: need to manually step with varying temperature
-                    trajectory = []
-                    state = (q, p)
-                    for step_idx in range(dream_steps):
-                        subkey, step_key = jax.random.split(subkey)
-                        q_curr, p_curr, new_key = chlu.stochastic_step(
-                            state, dt, gamma_val, temp_schedule[step_idx], step_key
-                        )
-                        trajectory.append(jnp.concatenate([q_curr, p_curr]))
-                        state = (q_curr, p_curr)
-                        subkey = new_key
-                    trajectory = jnp.array(trajectory)
-                else:
-                    # Constant temperature: use stochastic_rollout
-                    trajectory = chlu.stochastic_rollout(
-                        q, p, dream_steps, dt, gamma_val, temp_val, subkey
-                    )
+                # Use stochastic_rollout which now supports both constant and scheduled temperature
+                temp_to_use = temp_schedule if temp_schedule is not None else temp_val
+                trajectory = chlu.stochastic_rollout(
+                    q, p, dream_steps, dt, gamma_val, temp_to_use, subkey
+                )
             else:
                 # Deterministic evolution
                 trajectory = chlu(q, p, steps=dream_steps, dt=dt, gamma=gamma_val)

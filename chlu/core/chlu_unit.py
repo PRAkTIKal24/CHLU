@@ -287,7 +287,7 @@ class CHLU(eqx.Module):
         steps: int,
         dt: float,
         gamma: float,
-        temperature: float,
+        temperature: float | jnp.ndarray,
         key: jax.random.PRNGKey,
     ) -> jnp.ndarray:
         """
@@ -302,23 +302,31 @@ class CHLU(eqx.Module):
             steps: Number of time steps
             dt: Time step size
             gamma: Friction coefficient
-            temperature: Temperature parameter for thermal noise
+            temperature: Temperature parameter for thermal noise.
+                        Can be scalar (constant) or array of shape (steps,) for annealing.
             key: JAX random key for reproducible stochastic evolution
 
         Returns:
             Trajectory of shape (steps, 2*dim) where each row is [q, p]
         """
+        # Convert temperature to array schedule
+        # If scalar, broadcast to constant schedule
+        temp_schedule = jnp.atleast_1d(temperature)
+        if temp_schedule.shape[0] == 1:
+            temp_schedule = jnp.repeat(temp_schedule, steps)
+        elif temp_schedule.shape[0] != steps:
+            raise ValueError(f"Temperature schedule length {temp_schedule.shape[0]} must match steps {steps}")
 
-        def scan_fn(carry, _):
+        def scan_fn(carry, temp_t):
             q, p, key_state = carry
             q_next, p_next, new_key = self.stochastic_step(
-                (q, p), dt, gamma, temperature, key_state
+                (q, p), dt, gamma, temp_t, key_state
             )
             # Concatenate q and p for output
             output = jnp.concatenate([q_next, p_next])
             return (q_next, p_next, new_key), output
 
-        # Run scan with key threading
-        _, trajectory = jax.lax.scan(scan_fn, (q0, p0, key), None, length=steps)
+        # Run scan with key threading, iterating over temperature schedule
+        _, trajectory = jax.lax.scan(scan_fn, (q0, p0, key), temp_schedule)
 
         return trajectory
