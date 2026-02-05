@@ -162,12 +162,16 @@ def train_generative(
 
             def evolve_single(q, p, particle_key):
                 """Evolve a single (q, p) state for k steps with noise."""
+
                 def step_fn(carry, _):
                     state, key_state = carry
                     q_s, p_s = state
                     q_next, p_next, new_key = model.stochastic_step(
-                        (q_s, p_s), dt=dt, gamma=sleep_friction,
-                        temperature=sleep_temperature, key=key_state
+                        (q_s, p_s),
+                        dt=dt,
+                        gamma=sleep_friction,
+                        temperature=sleep_temperature,
+                        key=key_state,
                     )
                     return ((q_next, p_next), new_key), None
 
@@ -182,6 +186,7 @@ def train_generative(
             # Deterministic evolution
             def evolve_single(q, p):
                 """Evolve a single (q, p) state for k steps."""
+
                 def step_fn(state, _):
                     return model.step(state, dt=dt, gamma=sleep_friction), None
 
@@ -212,7 +217,7 @@ def train_generative(
             # Energy Regularization: Keep energies in reasonable range [-10, 10]
             # Without this, energy explodes to -8000 and temperature/noise becomes useless.
             # Penalizes the model for outputting massive energy magnitudes.
-            loss_reg = 0.01 * (jnp.mean(E_real**2) + jnp.mean(E_fake**2))
+            loss_reg = 1e-6 * (jnp.mean(E_real**2) + jnp.mean(E_fake**2))
 
             # Total contrastive loss with regularization
             total_loss = loss_wake + energy_weight * loss_sleep + loss_reg

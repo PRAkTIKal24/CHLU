@@ -113,7 +113,7 @@ def run_experiment_c(
     use_pretrained = config.experiment_c.use_pretrained
     kinetic_mode = config.experiment_c.kinetic_energy_mode
     potential_type = config.experiment_c.potential_type
-    
+
     # Langevin dynamics parameters
     temperature = config.experiment_c.temperature
     temperature_annealing = config.experiment_c.temperature_annealing
@@ -144,35 +144,40 @@ def run_experiment_c(
     # Compute dataset centroid for initialization (if using centroid mode)
     dataset_centroid = None
     if init_mode == "centroid":
-        print(f"\n  Computing dataset centroid for initialization...")
+        print("\n  Computing dataset centroid for initialization...")
         # Load raw MNIST to compute pixel-space centroid
         from sklearn.datasets import fetch_openml
-        mnist_raw = fetch_openml('mnist_784', version=1, as_frame=False, parser='auto')
+
+        mnist_raw = fetch_openml("mnist_784", version=1, as_frame=False, parser="auto")
         X_raw = np.array(mnist_raw.data[:n_samples], dtype=np.float32)
         X_raw = (X_raw / 127.5) - 1.0  # Normalize to [-1, 1]
-        
+
         # Compute centroid in pixel space
         centroid_raw = np.mean(X_raw, axis=0)  # Shape: (784,)
-        
+
         # Transform to PCA space if PCA is enabled
         if pca is not None:
-            dataset_centroid = pca.transform(centroid_raw.reshape(1, -1))[0]  # Shape: (pca_dim,)
+            dataset_centroid = pca.transform(centroid_raw.reshape(1, -1))[
+                0
+            ]  # Shape: (pca_dim,)
         else:
             dataset_centroid = centroid_raw  # Already in pixel space
-        
+
         dataset_centroid = jnp.array(dataset_centroid)
         print(f"  Centroid shape: {dataset_centroid.shape}")
-        print(f"  Centroid stats: mean={float(jnp.mean(dataset_centroid)):.3f}, std={float(jnp.std(dataset_centroid)):.3f}")
-        
+        print(
+            f"  Centroid stats: mean={float(jnp.mean(dataset_centroid)):.3f}, std={float(jnp.std(dataset_centroid)):.3f}"
+        )
+
         # Visualize the centroid (pure, before noise)
         centroid_img = centroid_raw.reshape(28, 28)
         centroid_path = os.path.join(save_dir, "exp3_centroid.png")
         plot_dreaming_grid(
-            np.array([centroid_img]), 
-            centroid_path, 
-            n_rows=1, 
-            n_cols=1, 
-            image_shape=(28, 28)
+            np.array([centroid_img]),
+            centroid_path,
+            n_rows=1,
+            n_cols=1,
+            image_shape=(28, 28),
         )
         print(f"  Saved pure centroid visualization to {centroid_path}")
 
@@ -247,12 +252,14 @@ def run_experiment_c(
         # Centroid initialization: start from dataset mean + Gaussian noise
         print(f"  Using centroid + Gaussian noise (scale={centroid_noise_scale})")
         q_noise = jnp.tile(dataset_centroid, (n_dreams, 1))  # Replicate centroid
-        q_noise = q_noise + jax.random.normal(k4, (n_dreams, pca_dim)) * centroid_noise_scale
+        q_noise = (
+            q_noise + jax.random.normal(k4, (n_dreams, pca_dim)) * centroid_noise_scale
+        )
     else:
         # Random initialization: pure Gaussian noise
         print(f"  Using random Gaussian noise (scale={q_noise_scale})")
         q_noise = jax.random.normal(k4, (n_dreams, pca_dim)) * q_noise_scale
-    
+
     # Initialize momentum (always random, using separate key)
     p_noise = jax.random.normal(k5, (n_dreams, pca_dim)) * p_noise_scale
 
@@ -263,21 +270,23 @@ def run_experiment_c(
     def run_dream_batch(gamma_val, temp_val, use_annealing, desc, dream_key):
         """
         Run dreaming with optional Langevin dynamics and temperature annealing.
-        
+
         Args:
             gamma_val: Friction coefficient
             temp_val: Temperature (constant if not annealing)
             use_annealing: Whether to apply temperature annealing schedule
             desc: Description for logging
             dream_key: JAX random key for stochastic evolution
-        
+
         Returns:
             (final_states, snapshots): Final states and snapshot evolution
         """
-        print(f"  Running {desc} batch (gamma={gamma_val}, temp={temp_val}, annealing={use_annealing})...")
+        print(
+            f"  Running {desc} batch (gamma={gamma_val}, temp={temp_val}, annealing={use_annealing})..."
+        )
         batch_snapshots = []
         batch_final = []
-        
+
         # Generate temperature schedule if annealing is enabled
         if use_annealing and temp_val > 0:
             temp_schedule = get_temperature_schedule(
@@ -289,7 +298,7 @@ def run_experiment_c(
 
         for i in range(n_dreams):
             q, p = q_noise[i], p_noise[i]
-            
+
             # Split key for this dream
             dream_key, subkey = jax.random.split(dream_key)
 
@@ -342,20 +351,23 @@ def run_experiment_c(
     final_states_annealed, snaps_annealed, k5 = run_dream_batch(
         friction, 0.0, False, "Annealed (With Friction)", k5
     )
-    
+
     # EXPERIMENT C: Thermal Exploration (Optional - if temperature > 0)
     # gamma=0, temperature>0: Particles explore via thermal noise without dissipation
     if temperature > 0.0:
         final_states_thermal, snaps_thermal, k5 = run_dream_batch(
             0.0, temperature, False, "Thermal (No Friction, With Noise)", k5
         )
-    
+
     # EXPERIMENT D: Annealed Thermal (Optional - if temperature > 0 and friction > 0)
     # gamma=friction, temperature with annealing: Simulated annealing to find modes
     if temperature > 0.0 and friction > 0.0:
         final_states_annealed_thermal, snaps_annealed_thermal, k5 = run_dream_batch(
-            friction, temperature, temperature_annealing, 
-            "Annealed Thermal (Friction + Noise + Cooling)", k5
+            friction,
+            temperature,
+            temperature_annealing,
+            "Annealed Thermal (Friction + Noise + Cooling)",
+            k5,
         )
 
     # 4. Visualize: Inverse PCA and Plot Side-by-Side
@@ -381,16 +393,19 @@ def run_experiment_c(
     decode_and_plot(
         final_states_annealed, "exp3_annealed_final.png", "Annealed Digits (Final)"
     )
-    
+
     # Plot thermal modes if enabled
     if temperature > 0.0:
         decode_and_plot(
-            final_states_thermal, "exp3_thermal_final.png", "Thermal Exploration (Final)"
+            final_states_thermal,
+            "exp3_thermal_final.png",
+            "Thermal Exploration (Final)",
         )
         if friction > 0.0:
             decode_and_plot(
-                final_states_annealed_thermal, "exp3_annealed_thermal_final.png", 
-                "Annealed Thermal (Final)"
+                final_states_annealed_thermal,
+                "exp3_annealed_thermal_final.png",
+                "Annealed Thermal (Final)",
             )
 
     # Plot evolution grids: 5 samples × time progression
@@ -434,13 +449,14 @@ def run_experiment_c(
 
     plot_evolution(snaps_ghosts, "exp3_ghosts_evolution.png", "Ghosts Evolution")
     plot_evolution(snaps_annealed, "exp3_annealed_evolution.png", "Annealed Evolution")
-    
+
     if temperature > 0.0:
         plot_evolution(snaps_thermal, "exp3_thermal_evolution.png", "Thermal Evolution")
         if friction > 0.0:
             plot_evolution(
-                snaps_annealed_thermal, "exp3_annealed_thermal_evolution.png", 
-                "Annealed Thermal Evolution"
+                snaps_annealed_thermal,
+                "exp3_annealed_thermal_evolution.png",
+                "Annealed Thermal Evolution",
             )
 
     # Plot intermediate snapshots (all samples at each timestep)
@@ -462,7 +478,7 @@ def run_experiment_c(
                 f"exp3_annealed_step_{step_num:03d}.png",
                 f"Annealed at step {step_num}",
             )
-            
+
             # Thermal modes if enabled
             if temperature > 0.0:
                 thermal_at_step = snaps_thermal[:, snap_idx, :]
@@ -471,7 +487,7 @@ def run_experiment_c(
                     f"exp3_thermal_step_{step_num:03d}.png",
                     f"Thermal at step {step_num}",
                 )
-                
+
                 if friction > 0.0:
                     annealed_thermal_at_step = snaps_annealed_thermal[:, snap_idx, :]
                     decode_and_plot(
