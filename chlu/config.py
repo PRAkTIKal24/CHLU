@@ -45,6 +45,7 @@ class TrainingConfig:
     k_steps: int = 20  # Negative phase evolution steps
     clamp_outputs: bool = True  # Enable hard pixel clamping to [-1, 1]
     energy_weight: float = 1.0  # Weight for contrastive energy loss
+    input_noise_sigma: float = 0.1  # Gaussian noise std for real data (denoising EBM)
 
     # Friction (used differently: 0.0 for dynamics, 0.1 for generative)
     sleep_friction: float = 0.0

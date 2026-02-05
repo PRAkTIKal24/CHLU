@@ -40,6 +40,7 @@ def train_generative(
     energy_weight: Optional[float] = None,
     sleep_friction: Optional[float] = None,
     sleep_temperature: Optional[float] = None,
+    input_noise_sigma: Optional[float] = None,
 ):
     """
     Train CHLU as an Energy-Based Model using Persistent Contrastive Divergence.
@@ -67,6 +68,7 @@ def train_generative(
         energy_weight: Weight for contrastive energy loss (overrides config)
         sleep_friction: Friction during negative phase (overrides config)
         sleep_temperature: Temperature for Langevin noise during sleep phase (overrides config)
+        input_noise_sigma: Gaussian noise std for real data (denoising EBM, overrides config)
 
     Returns:
         (trained_model, losses): Trained model and loss history dict
@@ -98,6 +100,8 @@ def train_generative(
         sleep_friction = config.experiment_c.friction
     if sleep_temperature is None:
         sleep_temperature = config.training.sleep_temperature
+    if input_noise_sigma is None:
+        input_noise_sigma = config.training.input_noise_sigma
 
     # Handle data shape
     if data.ndim == 1:
@@ -118,7 +122,7 @@ def train_generative(
     losses = {"wake": [], "sleep": [], "total": []}
 
     @eqx.filter_jit
-    def train_step(model, opt_state, x_real, buffer_q, buffer_p, key):
+    def train_step(model, opt_state, x_real, buffer_q, buffer_p, key, noise_sigma):
         """
         Single train step combining wake and sleep phases.
 
@@ -129,10 +133,19 @@ def train_generative(
             buffer_q: Current buffer q states (batch_size, dim)
             buffer_p: Current buffer p states (batch_size, dim)
             key: JAX random key
+            noise_sigma: Gaussian noise std for real data (denoising EBM)
 
         Returns:
             (loss_wake, loss_sleep, model, opt_state, q_fake, p_fake)
         """
+        # ==== INPUT NOISE INJECTION (Denoising EBM) ====
+        # Add small Gaussian noise to real data to widen the energy basin.
+        # This prevents "Dirac delta" potentials (infinitely narrow energy wells)
+        # and creates gentle slopes that guide sampling towards data modes.
+        key, subkey = jax.random.split(key)
+        x_real_noisy = x_real + jax.random.normal(subkey, x_real.shape) * noise_sigma
+        x_real_noisy = jnp.clip(x_real_noisy, -1.0, 1.0)  # Keep in valid range
+
         # ==== NEGATIVE PHASE (Sleep): Sample and Evolve ====
         # 1. Start from buffer states
         q_start = buffer_q
@@ -202,10 +215,10 @@ def train_generative(
 
         # ==== CONTRASTIVE DIVERGENCE LOSS ====
         def loss_fn(model):
-            # Wake: Minimize energy of real data
-            # "Push this '7' down the hill"
-            p_real = jnp.zeros_like(x_real)  # Zero momentum for static images
-            E_real = jax.vmap(model.H)(x_real, p_real)
+            # Wake: Minimize energy of NOISY real data
+            # "Push this noisy '7' down the hill" - widens the basin
+            p_real = jnp.zeros_like(x_real_noisy)  # Zero momentum for static images
+            E_real = jax.vmap(model.H)(x_real_noisy, p_real)
             loss_wake = jnp.mean(E_real)
 
             # Sleep: Maximize energy of fake/dream data
@@ -241,6 +254,7 @@ def train_generative(
     print(
         f"Re-init prob: {reinit_prob}, K-steps: {k_steps}, Friction: {sleep_friction}, Temperature: {sleep_temperature}"
     )
+    print(f"Input noise sigma: {input_noise_sigma} (denoising EBM)")
 
     for _epoch in tqdm(range(epochs), desc="Training (Generative)"):
         k2, subkey = jax.random.split(k2)
@@ -259,7 +273,7 @@ def train_generative(
 
         # Train step
         loss_wake, loss_sleep, model, opt_state, new_q, new_p, k2 = train_step(
-            model, opt_state, x_batch, buffer_q, buffer_p, k2
+            model, opt_state, x_batch, buffer_q, buffer_p, k2, input_noise_sigma
         )
 
         # CRITICAL: Update persistent buffer with evolved states
