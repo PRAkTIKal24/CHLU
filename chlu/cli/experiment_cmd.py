@@ -41,6 +41,10 @@ def setup_experiment_parsers(subparsers):
     exp_c_parser.add_argument('--project', help='Project name to use')
     exp_c_parser.add_argument('--seed', type=int, help='Random seed')
     exp_c_parser.add_argument('--quick', action='store_true', help='Quick mode (100 epochs)')
+    exp_c_parser.add_argument('--init-mode', choices=['random', 'centroid'], 
+                              help="Initialization mode: 'random' (default) or 'centroid' (dataset mean)")
+    exp_c_parser.add_argument('--centroid-noise-scale', type=float,
+                              help='Gaussian perturbation scale when using centroid init (default: 0.5)')
     exp_c_parser.set_defaults(func=cmd_exp_c)
     
     # all-experiments
@@ -146,8 +150,15 @@ def cmd_exp_c(args):
     # Set save directory in config
     config.project.save_dir = str(paths['plots'])
     
+    # Extract CLI overrides
+    kwargs = {'config': config, 'models_dir': str(paths['models'])}
+    if hasattr(args, 'init_mode') and args.init_mode is not None:
+        kwargs['init_mode'] = args.init_mode
+    if hasattr(args, 'centroid_noise_scale') and args.centroid_noise_scale is not None:
+        kwargs['centroid_noise_scale'] = args.centroid_noise_scale
+    
     try:
-        run_experiment_c(config=config, models_dir=str(paths['models']))
+        run_experiment_c(**kwargs)
         console.print("✓ Experiment C completed", style="bold green")
     except Exception as e:
         console.print(f"✗ Error: {e}", style="bold red")
