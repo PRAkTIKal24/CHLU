@@ -152,7 +152,7 @@ def train_generative(
         p_start = buffer_p
 
         # 2. Random re-initialization (prevents mode collapse)
-        # Reset 5% of chains to random noise
+        # Reset x% of chains to random noise
         key, subkey = jax.random.split(key)
         mask = jax.random.bernoulli(subkey, reinit_prob, (x_real.shape[0],))
 
