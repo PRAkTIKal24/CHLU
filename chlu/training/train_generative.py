@@ -230,7 +230,7 @@ def train_generative(
             # Energy Regularization: Keep energies in reasonable range [-10, 10]
             # Without this, energy explodes to -8000 and temperature/noise becomes useless.
             # Penalizes the model for outputting massive energy magnitudes.
-            loss_reg = 0.01 * (jnp.mean(E_real**2) + jnp.mean(E_fake**2))
+            loss_reg = 0.005 * (jnp.mean(E_real**2) + jnp.mean(E_fake**2))
 
             # Total contrastive loss with regularization
             total_loss = loss_wake + energy_weight * loss_sleep + loss_reg
