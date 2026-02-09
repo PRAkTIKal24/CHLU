@@ -148,7 +148,9 @@ def run_experiment_c(
         # Load raw MNIST to compute pixel-space centroid
         from sklearn.datasets import fetch_openml
 
-        mnist_raw = fetch_openml("mnist_784", version=1, as_frame=False, parser="liac-arff")
+        mnist_raw = fetch_openml(
+            "mnist_784", version=1, as_frame=False, parser="liac-arff"
+        )
         X_raw = np.array(mnist_raw.data[:n_samples], dtype=np.float32)
         X_raw = (X_raw / 127.5) - 1.0  # Normalize to [-1, 1]
 
@@ -365,6 +367,8 @@ def run_experiment_c(
         if pca is not None:
             images = pca.inverse_transform(states)
         else:
+            # Pass final images through tanh for better visualization
+            states = jnp.tanh(states)
             images = np.array(states)  # Already in pixel space
         images = images.reshape(-1, 28, 28)
 
