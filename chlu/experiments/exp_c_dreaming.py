@@ -368,7 +368,7 @@ def run_experiment_c(
             images = pca.inverse_transform(states)
         else:
             # Pass final images through tanh for better visualization
-            states = jnp.tanh(states)
+            states = jnp.tanh(states * 3.0)  # arbitrary gain of 3.0
             images = np.array(states)  # Already in pixel space
         images = images.reshape(-1, 28, 28)
 
