@@ -3,7 +3,6 @@
 from pathlib import Path
 from rich.console import Console
 import jax
-import jax.numpy as jnp
 
 from ..project import ProjectManager
 from ..core.chlu_unit import CHLU
@@ -128,7 +127,6 @@ def cmd_train_chlu(args):
             train_imgs, _, _ = load_mnist_pca(dim=config.experiment_c.pca_dim)
             train_data = train_imgs  # Shape: (n_samples, pca_dim)
             dim = config.experiment_c.pca_dim
-            use_generative = True
         else:
             console.print(f"[red]Unknown dataset: {args.data}[/red]")
             return 1
