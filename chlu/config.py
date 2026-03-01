@@ -29,9 +29,9 @@ class TrainingConfig:
     # Common parameters
     epochs: int = 1000
     learning_rate: float = 1e-3
-    batch_size: int = 32
+    batch_size: int = 64
     dt: float = 0.05
-    buffer_capacity: int = 1024
+    buffer_capacity: int = 10000
 
     # Dynamics training (Experiments A & B)
     lyapunov_lambda: float = 0.01
@@ -41,17 +41,17 @@ class TrainingConfig:
     sleep_frequency: int = 5
 
     # Generative training (Experiment C)
-    reinit_prob: float = 0.05  # Probability of resetting chains to noise
-    k_steps: int = 20  # Negative phase evolution steps
+    reinit_prob: float = 0.25  # Probability of resetting chains to noise
+    k_steps: int = 100  # Negative phase evolution steps
     clamp_outputs: bool = True  # Enable hard pixel clamping to [-1, 1]
     energy_weight: float = 1.0  # Weight for contrastive energy loss
-    input_noise_sigma: float = 0.1  # Gaussian noise std for real data (denoising EBM)
+    input_noise_sigma: float = 0.05  # Gaussian noise std for real data (denoising EBM)
 
     # Friction (used differently: 0.0 for dynamics, 0.1 for generative)
     sleep_friction: float = 0.0
 
     # Langevin dynamics (temperature-based noise for exploration)
-    sleep_temperature: float = 0.0  # Temperature for sleep phase (0.0 = deterministic)
+    sleep_temperature: float = 0.5  # Temperature for sleep phase (0.0 = deterministic)
 
 
 @dataclass
@@ -98,10 +98,10 @@ class ExperimentBConfig:
     train_epochs: int = 1000
     use_pretrained: bool = False  # Load pre-trained models if available
     kinetic_energy_mode: str = "newtonian_learned"  # KE calculation mode
-    sleep_friction: float = 0.01
-    friction_ramp: float = 0.2
+    sleep_friction: float = 0.2
+    friction_ramp: float = 0.05
     use_governor: bool = True  # Use energy-based governor for dynamic friction
-    governor_sensitivity: float = 1.0  # Controls correction speed for governor
+    governor_sensitivity: float = 0.95  # Controls correction speed for governor
     dt: float = 0.05
     sigma_min: float = 0.1
     sigma_max: float = 1.0
@@ -116,31 +116,35 @@ class ExperimentCConfig:
     """Configuration for Experiment C: Dreaming/Generation."""
 
     pca_dim: int = 784
-    train_epochs: int = 100
+    train_epochs: int = 500
     use_pretrained: bool = False  # Load pre-trained models if available
     kinetic_energy_mode: str = "relativistic"  # KE calculation mode
     potential_type: str = "conv"  # Potential network type: 'mlp', 'deep_mlp', 'conv'
     n_samples: int = 10000
     dream_steps: int = 1000
-    friction: float = 0.1
-    dt: float = 0.1
+    friction: float = 0.3
+    dt: float = 0.05
     n_dreams: int = 64
-    hidden_dim: int = 512
+    hidden_dim: int = 1024
     p_train_scale: float = 0.1
     q_noise_scale: float = 1.0
     p_noise_scale: float = 0.1
     snapshot_steps: List[int] = field(default_factory=lambda: [0, 200, 400, 600, 800])
 
     # Langevin dynamics parameters
-    temperature: float = 0.0  # Base temperature for dreaming (0.0 = deterministic)
-    temperature_annealing: bool = False  # Enable temperature annealing (cooling)
+    temperature: float = 1.0  # Base temperature for dreaming (0.0 = deterministic)
+    temperature_annealing: bool = True  # Enable temperature annealing (cooling)
     temperature_start: float = 1.0  # Starting temperature for annealing
     temperature_end: float = 0.01  # Ending temperature for annealing
-    annealing_schedule: str = "exponential"  # Annealing schedule type: 'exponential' or 'linear'
+    annealing_schedule: str = (
+        "exponential"  # Annealing schedule type: 'exponential' or 'linear'
+    )
 
     # Initialization mode parameters
     init_mode: str = "random"  # Initialization mode: 'random' or 'centroid'
-    centroid_noise_scale: float = 0.5  # Gaussian perturbation scale when using centroid init
+    centroid_noise_scale: float = (
+        0.5  # Gaussian perturbation scale when using centroid init
+    )
 
 
 @dataclass
@@ -211,7 +215,7 @@ def load_config(path: Path) -> CHLUConfig:
                 if isinstance(v, str):
                     try:
                         # Try int first (for whole numbers), then float
-                        if '.' not in v and 'e' not in v.lower():
+                        if "." not in v and "e" not in v.lower():
                             filtered[k] = int(v)
                         else:
                             filtered[k] = float(v)
