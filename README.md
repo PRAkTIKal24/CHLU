@@ -1,3 +1,13 @@
+![Release-version](https://img.shields.io/github/v/tag/PRAkTIKal24/CHLU?include_prereleases&label=latest%20release&color=blue)
+![GitHub Release-date](https://img.shields.io/github/release-date-pre/PRAkTIKal24/CHLU?style=flat&color=blue)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+![GitHub forks](https://img.shields.io/github/forks/PRAkTIKal24/CHLU?style=flat&color=blue)
+![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/PRAkTIKal24/CHLU)
+
+[![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+
+
 # CHLU
 Causal Hamiltonian Learning Unit
 
