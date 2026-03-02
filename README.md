@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18828513.svg)](https://doi.org/10.5281/zenodo.18828513)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18834889.svg)](https://doi.org/10.5281/zenodo.18834889)
 ![Release-version](https://img.shields.io/github/v/tag/PRAkTIKal24/CHLU?include_prereleases&label=latest%20release&color=blue)
 ![GitHub Release-date](https://img.shields.io/github/release-date-pre/PRAkTIKal24/CHLU?style=flat&color=blue)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
