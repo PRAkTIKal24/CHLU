@@ -397,9 +397,3 @@ run_experiment_a(
 # Update metadata
 pm.update_last_run('myproject')
 ```
-
-## See Also
-
-- [Development Guide](code_plan.md) - Code architecture and design
-- [Experiment Details](plan-chluImplementation.md) - Experiment descriptions
-- [README](../README.md) - Project overview
